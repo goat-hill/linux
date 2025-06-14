@@ -34,6 +34,8 @@
 
 	chosen {
 		stdout-path = &main_uart0;
+		base_dtb = "k3-am67a-beagleyai.dts";
+		base_dtb_timestamp = __TIMESTAMP__;
 	};
 
 	memory@80000000 {
@@ -292,6 +294,8 @@
 		led-0 {
 			gpios = <&main_gpio0 11 GPIO_ACTIVE_LOW>;
 			default-state = "off";
+			color = <LED_COLOR_ID_RED>;
+			label = "PWR";
 		};
 
 		led-1 {
@@ -299,6 +303,8 @@
 			linux,default-trigger = "heartbeat";
 			function = LED_FUNCTION_HEARTBEAT;
 			default-state = "on";
+			color = <LED_COLOR_ID_GREEN>;
+			label = "ACT";
 		};
 	};
 
@@ -315,8 +321,21 @@
 };
 
 &main_pmx0 {
-
 	/delete-property/ interrupts;
+
+	pinctrl-single,gpio-range =
+		<&main_pmx0_range 0 32 PIN_GPIO_RANGE_IOPAD>,
+		<&main_pmx0_range 33 38 PIN_GPIO_RANGE_IOPAD>,
+		<&main_pmx0_range 72 17 PIN_GPIO_RANGE_IOPAD>,
+		<&main_pmx0_range 101 25 PIN_GPIO_RANGE_IOPAD>,
+		<&main_pmx0_range 137 5 PIN_GPIO_RANGE_IOPAD>,
+		<&main_pmx0_range 143 3 PIN_GPIO_RANGE_IOPAD>,
+		<&main_pmx0_range 149 2 PIN_GPIO_RANGE_IOPAD>;
+
+	main_pmx0_range: gpio-range {
+		#pinctrl-single,gpio-range-cells = <3>;
+	};
+
 	main_i2c0_pins_default: main-i2c0-default-pins {
 		pinctrl-single,pins = <
 			J722S_IOPAD(0x01e0, PIN_INPUT_PULLUP, 0) /* (D23) I2C0_SCL */
@@ -625,14 +644,34 @@
 
 &main_gpio0 {
 	status = "okay";
+	pinctrl-names = "default";
+	gpio-line-names = "", "", "", "", "", /* 0-4 */
+			  "", "", "", "", "", /* 5-9 */
+			  "", "", "", "", "", /* 10-14 */
+			  "", "", "", "", "", /* 15-19 */
+			  "", "", "", "", "", /* 20-24 */
+			  "", "", "", "", "", /* 25-29 */
+			  "", "", "USB_RST", "GPIO27", "", /* 30-34 */
+			  "", "GPIO26", "", "GPIO4", "", /* 35-39 */
+			  "", "GPIO22", "GPIO25", "", ""; /* 40-44 */
 };
 
 &main_gpio1 {
 	status = "okay";
+	pinctrl-names = "default";
+	gpio-line-names = "", "", "", "", "", /* 0-4 */
+			  "", "", "GPIO16", "GPIO17", "GPIO21", /* 5-9 */
+			  "GPIO20", "GPIO18", "GPIO19", "GPIO15", "GPIO14", /* 10-14 */
+			  "GPIO5", "GPIO12", "GPIO6", "GPIO13", ""; /* 15-19 */
 };
 
 &mcu_gpio0 {
 	status = "okay";
+	pinctrl-names = "default";
+	gpio-line-names = "GPIO8", "", "GPIO11", "GPIO10", "GPIO9", /* 0-4 */
+			  "", "", "GPIO23", "", "GPIO7", /* 5-9 */
+			  "GPIO24", "", "", "HDMI_RSTn", "HDMI_INTn", /* 10-14 */
+			  "", "", "GPIO3", "GPIO2", ""; /* 15-19 */
 };
 
 &main_uart0 {
@@ -705,6 +744,15 @@
 
 &mcu_pmx0 {
 	bootph-all;
+
+	pinctrl-single,gpio-range =
+		<&mcu_pmx_range 0 21 PIN_GPIO_RANGE_IOPAD>,
+		<&mcu_pmx_range 23 1 PIN_GPIO_RANGE_IOPAD>,
+		<&mcu_pmx_range 32 2 PIN_GPIO_RANGE_IOPAD>;
+
+	mcu_pmx_range: gpio-range {
+		#pinctrl-single,gpio-range-cells = <3>;
+	};
 
 	wkup_uart0_pins_default: wkup-uart0-default-pins {
 		pinctrl-single,pins = <
@@ -1260,4 +1308,30 @@ csi0_i2c: &main_i2c2 {
 
 &main_rti3 {
 	assigned-clock-parents = <&k3_clks 128 4>;
+};
+
+// k3-am67a-beagley-ai-pinmux.dtsi
+
+&ecap0 {
+	status = "okay";
+};
+
+&ecap1 {
+	status = "okay";
+};
+
+&ecap2 {
+	status = "okay";
+};
+
+&epwm0 {
+	status = "okay";
+};
+
+&epwm1 {
+	status = "okay";
+};
+
+&epwm2 {
+	status = "okay";
 };
