@@ -1142,6 +1142,10 @@ dsi0_csi1_i2c: &main_i2c0 {
 		      <J722S_SERDES1_LANE0_PCIE0_LANE0>;
 };
 
+&serdes_wiz0 {
+	status = "okay";
+};
+
 &serdes0 {
 	status = "okay";
 	serdes0_usb_link: phy@0 {
@@ -1151,6 +1155,10 @@ dsi0_csi1_i2c: &main_i2c0 {
 		cdns,phy-type = <PHY_TYPE_USB3>;
 		resets = <&serdes_wiz0 1>;
 	};
+};
+
+&serdes_wiz1 {
+	status = "okay";
 };
 
 &serdes1 {
