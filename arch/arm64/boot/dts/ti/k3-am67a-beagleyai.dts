@@ -1093,10 +1093,6 @@ dsi0_csi1_i2c: &main_i2c0 {
 	status = "reserved";
 };
 
-&wkup_r5fss0 {
-	status = "disabled";
-};
-
 &wkup_r5fss0_core0 {
 	mboxes = <&mailbox0_cluster0 &mbox_wkup_r5_0>;
 	memory-region = <&wkup_r5fss0_core0_dma_memory_region>,
