@@ -1030,7 +1030,8 @@ dsi0_csi1_i2c: &main_i2c0 {
 	status = "okay";
 
 	cc33xx: cc33xx@0 {
-		compatible = "ti,cc3301";
+		//compatible = "ti,cc3301";
+		compatible = "ti,cc3300";
 		reg = <2>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&wifi_wlirq_pins_default>;
