@@ -216,6 +216,20 @@
 		pinctrl-0 = <&wifi_en_pins_default>;
 	};
 
+	bt_en: regulator-8 {
+		compatible = "regulator-fixed";
+		regulator-name = "bt_en";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		enable-active-high;
+		regulator-always-on;
+		regulator-off-in-suspend;
+		vin-supply = <&vdd_3v3>;
+		gpio = <&main_gpio0 3 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&bt_en_pins_default>;
+	};
+
 	sound0: sound {
 		compatible = "simple-audio-card";
 		simple-audio-card,name = "it66122 HDMI";
@@ -515,6 +529,12 @@
 	wifi_en_pins_default: wifi-en-default-pins {
 		pinctrl-single,pins = <
 			J722S_IOPAD(0x0010, PIN_OUTPUT, 7) /* (L27) OSPI0_D1.GPIO0_4 */
+		>;
+	};
+
+	bt_en_pins_default: bt-en-default-pins {
+		pinctrl-single,pins = <
+			J722S_IOPAD(0x000c, PIN_OUTPUT, 7) /* (K27) OSPI0_D0.GPIO0_3 */
 		>;
 	};
 
