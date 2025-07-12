@@ -216,6 +216,20 @@
 		pinctrl-0 = <&wifi_en_pins_default>;
 	};
 
+	bt_en: regulator-8 {
+		compatible = "regulator-fixed";
+		regulator-name = "bt_en";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		enable-active-high;
+		regulator-always-on;
+		regulator-off-in-suspend;
+		vin-supply = <&vdd_3v3>;
+		gpio = <&main_gpio0 3 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&bt_en_pins_default>;
+	};
+
 	sound0: sound {
 		compatible = "simple-audio-card";
 		simple-audio-card,name = "it66122 HDMI";
@@ -518,6 +532,12 @@
 		>;
 	};
 
+	bt_en_pins_default: bt-en-default-pins {
+		pinctrl-single,pins = <
+			J722S_IOPAD(0x000c, PIN_OUTPUT, 7) /* (K27) OSPI0_D0.GPIO0_3 */
+		>;
+	};
+
 	wifi_wlirq_pins_default: wifi-wlirq-default-pins {
 		pinctrl-single,pins = <
 			J722S_IOPAD(0x0014, PIN_INPUT, 7) /* (L26) OSPI0_D2.GPIO0_5 */
@@ -698,7 +718,7 @@
 
 	bluetooth {
 		compatible = "ti,cc33xx-bt";
-		cc33xx-supply = <&wlan_en>;
+		cc33xx-supply = <&bt_en>;
 		max-speed = <115200>;
 	};
 };
@@ -1029,7 +1049,11 @@ dsi0_csi1_i2c: &main_i2c0 {
 	#size-cells = <0>;
 	status = "okay";
 
-	cc33xx: cc33xx@0 {
+	btti: btti@1 {
+		compatible = "ti,cc33xxbt";
+		reg = <1>;
+	};
+	cc33xx: cc33xx@2 {
 		//compatible = "ti,cc3301";
 		compatible = "ti,cc3300";
 		reg = <2>;
