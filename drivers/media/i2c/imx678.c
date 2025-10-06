@@ -91,8 +91,6 @@ struct imx678_mode {
 };
 
 static const s64 imx678_link_freq_menu[] = {
-
-	[_GMSL_LINK_FREQ_1500] = GMSL_LINK_FREQ_1500,
 	[_IMX678_LINK_FREQ_1440] = IMX678_LINK_FREQ_1440,
 	[_IMX678_LINK_FREQ_1188] = IMX678_LINK_FREQ_1188,
 	[_IMX678_LINK_FREQ_891] = IMX678_LINK_FREQ_891,
@@ -1595,9 +1593,6 @@ static int imx678_check_hwcfg(struct device *dev, struct i2c_client *client)
 	if (ret) {
 		dev_warn(dev, "initializing mipi...\n");
 		imx678->gmsl = "mipi";
-	} else if (!strcmp(gmsl, "gmsl")) {
-		dev_warn(dev, "initializing GMSL...\n");
-		imx678->gmsl = "gmsl";
 	}
 
 	ret = 0;

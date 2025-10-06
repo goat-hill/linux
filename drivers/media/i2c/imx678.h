@@ -542,7 +542,6 @@ static const struct imx678_reg mode_disable_pattern_generator[] = {
 };
 
 enum {
-	_GMSL_LINK_FREQ_1500,
 	_IMX678_LINK_FREQ_1440,
 	_IMX678_LINK_FREQ_1188,
 	_IMX678_LINK_FREQ_891,
