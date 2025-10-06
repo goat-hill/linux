@@ -7,7 +7,7 @@
 
 //#define DEBUG 1
 
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 #include <linux/delay.h>
 #include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
@@ -1619,16 +1619,6 @@ static int imx678_probe(struct i2c_client *client)
 	struct device *dev = &client->dev;
 	struct imx678 *imx678;
 	const struct of_device_id *match;
-	struct device_node *node = dev->of_node;
-	struct device_node *ser_node;
-	struct i2c_client *ser_i2c = NULL;
-	struct device_node *dser_node;
-	struct i2c_client *dser_i2c = NULL;
-	struct device_node *gmsl;
-	int value = 0xFFFF;
-	const char *str_value;
-	const char *str_value1[2];
-	int i;
 	int ret;
 
 	imx678 = devm_kzalloc(&client->dev, sizeof(*imx678), GFP_KERNEL);
