@@ -1610,7 +1610,7 @@ error_out:
 }
 
 static const struct of_device_id imx678_dt_ids[] = {
-	{ .compatible = "framos,fr_imx678" },
+	{ .compatible = "sony,imx678" },
 	{	}
 };
 
