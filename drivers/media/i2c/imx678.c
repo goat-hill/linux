@@ -2,7 +2,7 @@
 /*
  * Copyright (c) 2024 Framos. All rights reserved.
  *
- * fr_imx678.c - Framos fr_imx678.c driver
+ * imx678.c - Framos imx678.c driver
  */
 
 //#define DEBUG 1
@@ -57,7 +57,6 @@
 
 enum pad_types {
 	IMAGE_PAD,
-	METADATA_PAD,
 	NUM_PADS
 };
 
@@ -484,30 +483,23 @@ static u32 imx678_get_format_code(struct imx678 *imx678, u32 code)
 static int imx678_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
 	struct imx678 *imx678 = to_imx678(sd);
-	struct v4l2_mbus_framefmt *try_fmt_img =
-		v4l2_subdev_get_try_format(sd, fh->state, IMAGE_PAD);
-	struct v4l2_mbus_framefmt *try_fmt_meta =
-		v4l2_subdev_get_try_format(sd, fh->state, METADATA_PAD);
-	struct v4l2_rect *try_crop;
+	struct v4l2_mbus_framefmt *fmt_img =
+		v4l2_subdev_state_get_format(fh->state, IMAGE_PAD);
+	struct v4l2_rect *crop;
 
 	mutex_lock(&imx678->mutex);
 
-	try_fmt_img->width = modes_12bit[0].width;
-	try_fmt_img->height = modes_12bit[0].height;
-	try_fmt_img->code = imx678_get_format_code(imx678,
+	fmt_img->width = modes_12bit[0].width;
+	fmt_img->height = modes_12bit[0].height;
+	fmt_img->code = imx678_get_format_code(imx678,
 						MEDIA_BUS_FMT_SRGGB12_1X12);
-	try_fmt_img->field = V4L2_FIELD_NONE;
+	fmt_img->field = V4L2_FIELD_NONE;
 
-	try_fmt_meta->width = IMX678_EMBEDDED_LINE_WIDTH;
-	try_fmt_meta->height = IMX678_NUM_EMBEDDED_LINES;
-	try_fmt_meta->code = MEDIA_BUS_FMT_SENSOR_DATA;
-	try_fmt_meta->field = V4L2_FIELD_NONE;
-
-	try_crop = v4l2_subdev_get_try_crop(sd, fh->state, IMAGE_PAD);
-	try_crop->left = IMX678_PIXEL_ARRAY_LEFT;
-	try_crop->top = IMX678_PIXEL_ARRAY_TOP;
-	try_crop->width = IMX678_PIXEL_ARRAY_WIDTH;
-	try_crop->height = IMX678_PIXEL_ARRAY_HEIGHT;
+	crop = v4l2_subdev_state_get_crop(fh->state, IMAGE_PAD);
+	crop->left = IMX678_PIXEL_ARRAY_LEFT;
+	crop->top = IMX678_PIXEL_ARRAY_TOP;
+	crop->width = IMX678_PIXEL_ARRAY_WIDTH;
+	crop->height = IMX678_PIXEL_ARRAY_HEIGHT;
 
 	mutex_unlock(&imx678->mutex);
 
@@ -864,11 +856,6 @@ static int imx678_enum_mbus_code(struct v4l2_subdev *sd,
 
 		code->code = imx678_get_format_code(imx678,
 							codes[code->index]);
-	} else {
-		if (code->index > 0)
-			return -EINVAL;
-
-		code->code = MEDIA_BUS_FMT_SENSOR_DATA;
 	}
 
 	return 0;
@@ -899,14 +886,6 @@ static int imx678_enum_frame_size(struct v4l2_subdev *sd,
 		fse->max_width = fse->min_width;
 		fse->min_height = mode_list[fse->index].height;
 		fse->max_height = fse->min_height;
-	} else {
-		if (fse->code != MEDIA_BUS_FMT_SENSOR_DATA || fse->index > 0)
-			return -EINVAL;
-
-		fse->min_width = IMX678_EMBEDDED_LINE_WIDTH;
-		fse->max_width = fse->min_width;
-		fse->min_height = IMX678_NUM_EMBEDDED_LINES;
-		fse->max_height = fse->min_height;
 	}
 
 	return 0;
@@ -932,14 +911,6 @@ static void imx678_update_image_pad_format(struct imx678 *imx678,
 	imx678_reset_colorspace(&fmt->format);
 }
 
-static void imx678_update_metadata_pad_format(struct v4l2_subdev_format *fmt)
-{
-	fmt->format.width = IMX678_EMBEDDED_LINE_WIDTH;
-	fmt->format.height = IMX678_NUM_EMBEDDED_LINES;
-	fmt->format.code = MEDIA_BUS_FMT_SENSOR_DATA;
-	fmt->format.field = V4L2_FIELD_NONE;
-}
-
 static int imx678_get_pad_format(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_state *sd_state,
 				 struct v4l2_subdev_format *fmt)
@@ -953,11 +924,9 @@ static int imx678_get_pad_format(struct v4l2_subdev *sd,
 
 	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
 		struct v4l2_mbus_framefmt *try_fmt =
-			v4l2_subdev_get_try_format(&imx678->sd, sd_state,
+			v4l2_subdev_state_get_format(sd_state,
 							fmt->pad);
-		try_fmt->code = fmt->pad == IMAGE_PAD ?
-				imx678_get_format_code(imx678, try_fmt->code) :
-				MEDIA_BUS_FMT_SENSOR_DATA;
+		try_fmt->code = imx678_get_format_code(imx678, try_fmt->code);
 		fmt->format = *try_fmt;
 	} else {
 		if (fmt->pad == IMAGE_PAD) {
@@ -966,8 +935,6 @@ static int imx678_get_pad_format(struct v4l2_subdev *sd,
 			fmt->format.code =
 					imx678_get_format_code(imx678,
 								imx678->fmt_code);
-		} else {
-			imx678_update_metadata_pad_format(fmt);
 		}
 	}
 
@@ -1050,21 +1017,13 @@ static int imx678_set_pad_format(struct v4l2_subdev *sd,
 		imx678_update_image_pad_format(imx678, mode, fmt);
 
 		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-			framefmt = v4l2_subdev_get_try_format(sd, sd_state,
+			framefmt = v4l2_subdev_state_get_format(sd_state,
 								fmt->pad);
 			*framefmt = fmt->format;
 		} else if (imx678->mode != mode) {
 			imx678->mode = mode;
 			imx678->fmt_code = fmt->format.code;
 			imx678_set_limits(imx678);
-		}
-	} else {
-		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-			framefmt = v4l2_subdev_get_try_format(sd, sd_state,
-								fmt->pad);
-			*framefmt = fmt->format;
-		} else {
-			imx678_update_metadata_pad_format(fmt);
 		}
 	}
 
@@ -1080,7 +1039,7 @@ __imx678_get_pad_crop(struct imx678 *imx678,
 {
 	switch (which) {
 	case V4L2_SUBDEV_FORMAT_TRY:
-		return v4l2_subdev_get_try_crop(&imx678->sd, sd_state, pad);
+		return v4l2_subdev_state_get_crop(sd_state, pad);
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
 		return &imx678->mode->crop;
 	}
@@ -1669,7 +1628,6 @@ static int imx678_probe(struct i2c_client *client)
 	imx678->sd.entity.function = MEDIA_ENT_F_CAM_SENSOR;
 
 	imx678->pad[IMAGE_PAD].flags = MEDIA_PAD_FL_SOURCE;
-	imx678->pad[METADATA_PAD].flags = MEDIA_PAD_FL_SOURCE;
 
 	ret = media_entity_pads_init(&imx678->sd.entity, NUM_PADS, imx678->pad);
 	if (ret) {
@@ -1723,7 +1681,7 @@ static const struct dev_pm_ops imx678_pm_ops = {
 
 static struct i2c_driver imx678_i2c_driver = {
 	.driver = {
-		.name = "fr_imx678",
+		.name = "imx678",
 		.of_match_table	= imx678_dt_ids,
 		.pm = &imx678_pm_ops,
 	},
