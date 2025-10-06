@@ -20,9 +20,7 @@
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-mediabus.h>
 
-#include "fr_imx678_regs.h"
-#include "fr_max96792.h"
-#include "fr_max96793.h"
+#include "imx678.h"
 
 #define IMX678_K_FACTOR				1000LL
 #define IMX678_M_FACTOR				1000000LL
@@ -301,9 +299,6 @@ struct imx678 {
 	u32 frame_length;
 
 	const char *gmsl;
-	struct device *ser_dev;
-	struct device *dser_dev;
-	struct gmsl_link_ctx g_ctx;
 
 	const struct imx678_mode *mode;
 	struct mutex mutex;
@@ -1001,10 +996,7 @@ static void imx678_set_limits(struct imx678 *imx678)
 				 mode->pixel_rate, 1, mode->pixel_rate);
 	dev_dbg(dev, "%s: pixel rate: %d\n", __func__, mode->pixel_rate);
 
-	if (!(strcmp(imx678->gmsl, "gmsl")))
-		__v4l2_ctrl_s_ctrl(imx678->link_freq, _GMSL_LINK_FREQ_1500);
-	else
-		__v4l2_ctrl_s_ctrl(imx678->link_freq, mode->linkfreq);
+	__v4l2_ctrl_s_ctrl(imx678->link_freq, mode->linkfreq);
 
 	dev_dbg(dev, "%s: linkfreq: %lld\n", __func__,
 					imx678_link_freq_menu[mode->linkfreq]);
@@ -1193,28 +1185,6 @@ static int imx678_start_streaming(struct imx678 *imx678)
 	struct device *dev = &client->dev;
 	int ret;
 
-	if (!(strcmp(imx678->gmsl, "gmsl"))) {
-		ret = max96793_setup_streaming(imx678->ser_dev, imx678->fmt_code);
-		if (ret) {
-			dev_err(dev, "%s: Unable to setup streaming for serializer max96793\n",
-								__func__);
-			return ret;
-		}
-		ret = max96792_setup_streaming(imx678->dser_dev,
-							&client->dev);
-		if (ret) {
-			dev_err(dev, "%s: Unable to setup streaming for deserializer max96792\n",
-								__func__);
-			return ret;
-		}
-		ret = max96792_start_streaming(imx678->dser_dev, &client->dev);
-		if (ret) {
-			dev_err(dev, "%s: Unable to start gmsl streaming\n",
-								__func__);
-			return ret;
-		}
-	}
-
 	ret = imx678_set_mode(imx678);
 	if (ret) {
 		dev_err(dev, "%s failed to set mode start stream\n", __func__);
@@ -1253,11 +1223,6 @@ static void imx678_stop_streaming(struct imx678 *imx678)
 	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
 	struct device *dev = &client->dev;
 	int ret;
-
-	if (!(strcmp(imx678->gmsl, "gmsl"))) {
-		max96793_bypassPCLK_dis(imx678->ser_dev);
-		max96792_stop_streaming(imx678->dser_dev, &client->dev);
-	}
 
 	ret = imx678_write_reg(imx678, XMSTA, 1, 0x01);
 	if (ret)
@@ -1318,77 +1283,6 @@ err_unlock:
 	return ret;
 }
 
-static int imx678_gmsl_serdes_setup(struct imx678 *imx678)
-{
-	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
-	struct device *dev = &client->dev;
-	int ret = 0;
-	int des_err = 0;
-
-	if (!imx678 || !imx678->ser_dev || !imx678->dser_dev || !client)
-		return -EINVAL;
-
-	dev_dbg(dev, "enter %s function\n", __func__);
-
-	mutex_lock(&imx678->mutex);
-
-	ret = max96792_reset_control(imx678->dser_dev, &client->dev);
-
-	ret = max96792_gmsl3_setup(imx678->dser_dev);
-	if (ret) {
-		dev_err(dev, "deserializer gmsl setup failed\n");
-		goto error;
-	}
-
-	ret = max96793_gmsl3_setup(imx678->ser_dev);
-	if (ret) {
-		dev_err(dev, "serializer gmsl setup failed\n");
-		goto error;
-	}
-
-	dev_dbg(dev, "%s: max96792_setup_link\n", __func__);
-
-	ret = max96792_setup_link(imx678->dser_dev, &client->dev);
-	if (ret) {
-		dev_err(dev, "gmsl deserializer link config failed\n");
-		goto error;
-	}
-
-	dev_dbg(dev, "%s: max96793_setup_control\n", __func__);
-	ret = max96793_setup_control(imx678->ser_dev);
-
-	if (ret)
-		dev_err(dev, "gmsl serializer setup failed\n");
-
-	ret = max96793_gpio10_xtrig1_setup(imx678->ser_dev, "mipi");
-	if (ret) {
-		dev_err(dev, "gmsl serializer gpio10/xtrig1 pin config failed\n");
-		goto error;
-	}
-
-	dev_dbg(dev, "%s: max96792_setup_control\n", __func__);
-	des_err = max96792_setup_control(imx678->dser_dev, &client->dev);
-	if (des_err)
-		dev_err(dev, "gmsl deserializer setup failed\n");
-
-error:
-	mutex_unlock(&imx678->mutex);
-	return ret;
-}
-
-static void imx678_gmsl_serdes_reset(struct imx678 *imx678)
-{
-	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
-
-	mutex_lock(&imx678->mutex);
-
-	max96793_reset_control(imx678->ser_dev);
-	max96792_reset_control(imx678->dser_dev, &client->dev);
-	max96792_power_off(imx678->dser_dev, &imx678->g_ctx);
-
-	mutex_unlock(&imx678->mutex);
-}
-
 static int imx678_power_on(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
@@ -1396,11 +1290,8 @@ static int imx678_power_on(struct device *dev)
 	struct imx678 *imx678 = to_imx678(sd);
 
 	if (strcmp(imx678->gmsl, "gmsl")) {
-		gpiod_set_value_cansleep(imx678->reset_gpio, 1);
+        gpiod_set_value_cansleep(imx678->reset_gpio, 1);
 		usleep_range(25000, 30000);
-	} else {
-		dev_info(dev, "%s: max96792_power_on\n", __func__);
-		max96792_power_on(imx678->dser_dev, &imx678->g_ctx);
 	}
 
 	return 0;
@@ -1420,9 +1311,6 @@ static int imx678_power_off(struct device *dev)
 	mutex_lock(&imx678->mutex);
 	if (strcmp(imx678->gmsl, "gmsl")) {
 		gpiod_set_value_cansleep(imx678->reset_gpio, 0);
-	} else {
-		dev_info(dev, "%s: max96792_power_off\n", __func__);
-		max96792_power_off(imx678->dser_dev, &imx678->g_ctx);
 	}
 	mutex_unlock(&imx678->mutex);
 
@@ -1764,185 +1652,6 @@ static int imx678_probe(struct i2c_client *client)
 		}
 	}
 
-	if (!(strcmp(imx678->gmsl, "gmsl"))) {
-		ret = of_property_read_u32(node, "reg", &imx678->g_ctx.sdev_reg);
-		if (ret < 0) {
-			dev_err(dev, "reg not found\n");
-			return ret;
-		}
-
-		ret = of_property_read_u32(node, "def-addr",
-							&imx678->g_ctx.sdev_def);
-		if (ret < 0) {
-			dev_err(dev, "def-addr not found\n");
-			return ret;
-		}
-
-		ser_node = of_parse_phandle(node, "gmsl-ser-device", 0);
-		if (ser_node == NULL) {
-			dev_err(dev, "missing %s handle\n", "gmsl-ser-device");
-			return ret;
-		}
-
-		ret = of_property_read_u32(ser_node, "reg", &imx678->g_ctx.ser_reg);
-		if (ret < 0) {
-			dev_err(dev, "serializer reg not found\n");
-			return ret;
-		}
-
-		ser_i2c = of_find_i2c_device_by_node(ser_node);
-		of_node_put(ser_node);
-
-		if (ser_i2c == NULL) {
-			dev_err(dev, "missing serializer dev handle\n");
-			return ret;
-		}
-		if (ser_i2c->dev.driver == NULL) {
-			dev_err(dev, "missing serializer driver\n");
-			return ret;
-		}
-
-		imx678->ser_dev = &ser_i2c->dev;
-
-		dser_node = of_parse_phandle(node, "gmsl-dser-device", 0);
-		if (dser_node == NULL) {
-			dev_err(dev, "missing %s handle\n", "gmsl-dser-device");
-			return ret;
-		}
-
-		dser_i2c = of_find_i2c_device_by_node(dser_node);
-		of_node_put(dser_node);
-
-		if (dser_i2c == NULL) {
-			dev_err(dev, "missing deserializer dev handle\n");
-			return ret;
-		}
-		if (dser_i2c->dev.driver == NULL) {
-			dev_err(dev, "missing deserializer driver\n");
-			return ret;
-		}
-
-		imx678->dser_dev = &dser_i2c->dev;
-
-		gmsl = of_get_child_by_name(node, "gmsl-link");
-		if (gmsl == NULL) {
-			dev_err(dev, "missing gmsl-link device node\n");
-			ret = -EINVAL;
-			return ret;
-		}
-
-		ret = of_property_read_string(gmsl, "dst-csi-port", &str_value);
-		if (ret < 0) {
-			dev_err(dev, "No dst-csi-port found\n");
-			return ret;
-		}
-		imx678->g_ctx.dst_csi_port =
-		(!strcmp(str_value, "a")) ? GMSL_CSI_PORT_A : GMSL_CSI_PORT_B;
-
-		ret = of_property_read_string(gmsl, "src-csi-port", &str_value);
-		if (ret < 0) {
-			dev_err(dev, "No src-csi-port found\n");
-			return ret;
-		}
-		imx678->g_ctx.src_csi_port =
-		(!strcmp(str_value, "a")) ? GMSL_CSI_PORT_A : GMSL_CSI_PORT_B;
-
-		ret = of_property_read_string(gmsl, "csi-mode", &str_value);
-		if (ret < 0) {
-			dev_err(dev, "No csi-mode found\n");
-			return ret;
-		}
-
-		if (!strcmp(str_value, "1x4")) {
-			imx678->g_ctx.csi_mode = GMSL_CSI_1X4_MODE;
-		} else if (!strcmp(str_value, "2x4")) {
-			imx678->g_ctx.csi_mode = GMSL_CSI_2X4_MODE;
-		} else if (!strcmp(str_value, "2x2")) {
-			imx678->g_ctx.csi_mode = GMSL_CSI_2X2_MODE;
-		} else {
-			dev_err(dev, "invalid csi mode\n");
-			return ret;
-		}
-
-		ret = of_property_read_string(gmsl, "serdes-csi-link", &str_value);
-		if (ret < 0) {
-			dev_err(dev, "No serdes-csi-link found\n");
-			return ret;
-		}
-		imx678->g_ctx.serdes_csi_link =
-		(!strcmp(str_value, "a")) ? GMSL_SERDES_CSI_LINK_A : GMSL_SERDES_CSI_LINK_B;
-
-		ret = of_property_read_u32(gmsl, "st-vc", &value);
-		if (ret < 0) {
-			dev_err(dev, "No st-vc info\n");
-			return ret;
-		}
-
-		imx678->g_ctx.st_vc = value;
-
-		ret = of_property_read_u32(gmsl, "vc-id", &value);
-		if (ret < 0) {
-			dev_err(dev, "No vc-id info\n");
-			return ret;
-		}
-		imx678->g_ctx.dst_vc = value;
-
-		ret = of_property_read_u32(gmsl, "num-lanes", &value);
-		if (ret < 0) {
-			dev_err(dev, "No num-lanes info\n");
-			return ret;
-		}
-
-		imx678->g_ctx.num_csi_lanes = value;
-
-		imx678->g_ctx.num_streams =
-				of_property_count_strings(gmsl, "streams");
-		if (imx678->g_ctx.num_streams <= 0) {
-			dev_err(dev, "No streams found\n");
-			ret = -EINVAL;
-			return ret;
-		}
-
-		for (i = 0; i < imx678->g_ctx.num_streams; i++) {
-			of_property_read_string_index(gmsl, "streams", i, &str_value1[i]);
-			if (!str_value1[i]) {
-				dev_err(dev, "invalid stream info\n");
-				return ret;
-			}
-			if (!strcmp(str_value1[i], "raw12")) {
-				imx678->g_ctx.streams[i].st_data_type = GMSL_CSI_DT_RAW_12;
-			} else if (!strcmp(str_value1[i], "embed")) {
-				imx678->g_ctx.streams[i].st_data_type = GMSL_CSI_DT_EMBED;
-			} else if (!strcmp(str_value1[i], "ued-u1")) {
-				imx678->g_ctx.streams[i].st_data_type = GMSL_CSI_DT_UED_U1;
-			} else {
-				dev_err(dev, "invalid stream data type\n");
-				return ret;
-			}
-		}
-
-		imx678->g_ctx.s_dev = dev;
-
-		ret = max96793_sdev_pair(imx678->ser_dev, &imx678->g_ctx);
-		if (ret) {
-			dev_err(dev, "gmsl ser pairing failed\n");
-			return ret;
-		}
-
-		ret = max96792_sdev_register(imx678->dser_dev, &imx678->g_ctx);
-		if (ret) {
-			dev_err(dev, "gmsl deserializer register failed\n");
-			return ret;
-		}
-
-		ret = imx678_gmsl_serdes_setup(imx678);
-		if (ret) {
-			dev_err(dev, "%s gmsl serdes setup failed\n", __func__);
-			return ret;
-		}
-
-	}
-
 	ret = imx678_power_on(dev);
 	if (ret)
 		return ret;
@@ -2009,11 +1718,6 @@ static void imx678_remove(struct i2c_client *client)
 {
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
 	struct imx678 *imx678 = to_imx678(sd);
-
-	if (!(strcmp(imx678->gmsl, "gmsl"))) {
-		max96792_sdev_unregister(imx678->dser_dev, &client->dev);
-		imx678_gmsl_serdes_reset(imx678);
-	}
 
 	v4l2_async_unregister_subdev(sd);
 	media_entity_cleanup(&sd->entity);

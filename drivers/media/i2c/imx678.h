@@ -2,7 +2,7 @@
 /*
  * Copyright (c) 2024 Framos. All rights reserved.
  *
- * fr_imx678_regs.h - imx678 sensor mode tables
+ * imx678.h - imx678 sensor mode tables
  */
 
 #define STANDBY			0x3000
