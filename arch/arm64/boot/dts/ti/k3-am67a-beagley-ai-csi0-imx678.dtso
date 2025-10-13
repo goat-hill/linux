@@ -18,14 +18,6 @@
 	};
 };
 
-&{/} {
-	clk_imx678_fixed: imx678-xclk {
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-frequency = <24000000>;
-	};
-};
-
 &main_i2c2 {
 	status = "okay";
 	pinctrl-names = "default";
@@ -35,24 +27,22 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 
-	imx678_0: sensor@10 {
+	imx678_0: sensor@1a {
 		compatible = "sony,imx678";
-		reg = <0x10>;
-
-		clocks = <&clk_imx678_fixed>;
-		clock-names = "xclk";
-
-		pinctrl-names = "default";
-		pinctrl-0 = <&csi0_gpio_pins_default>;
+		reg = <0x1a>;
+		status = "okay";
 
 		reset-gpios = <&mcu_gpio0 15 GPIO_ACTIVE_HIGH>;
 
 		port {
 			csi2_cam0: endpoint {
 				remote-endpoint = <&csi2rx0_in_sensor>;
-				link-frequencies = /bits/ 64 <456000000>;
 				clock-lanes = <0>;
-				data-lanes = <1 2>;
+				data-lanes = <1 2 3 4>; // Note: imx219 uses 2
+				clock-noncontinuous; // Note: Not set for imx219
+				link-frequencies =
+					/bits/ 64 <750000000 720000000 594000000 445500000>;
+					// Note: Differs from 456000000 for imx219
 			};
 		};
 	};
@@ -69,9 +59,10 @@
 
 			csi2rx0_in_sensor: endpoint {
 				remote-endpoint = <&csi2_cam0>;
-				bus-type = <4>; /* CSI2 DPHY */
+				bus-type = <4>; /* CSI2 DPHY */ // Note: Left out (guessed) for imx219
 				clock-lanes = <0>;
-				data-lanes = <1 2>;
+				data-lanes = <1 2 3 4>;
+				clock-noncontinuous;
 			};
 		};
 	};
