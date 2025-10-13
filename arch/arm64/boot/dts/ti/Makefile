@@ -376,6 +376,8 @@ k3-am67a-beagley-ai-edgeai-apps-dtbs := k3-am67a-beagleyai.dtb \
 	k3-am67a-beagley-ai-edgeai-apps.dtbo
 k3-am67a-beagley-ai-csi0-imx219-dtbs := k3-am67a-beagleyai.dtb \
 	k3-am67a-beagley-ai-csi0-imx219.dtbo
+k3-am67a-beagley-ai-csi0-imx678-dtbs := k3-am67a-beagleyai.dtb \
+	k3-am67a-beagley-ai-csi0-imx678.dtbo
 k3-j742s2-evm-ethfw-dtbs := k3-j742s2-evm.dtb \
 	k3-j742s2-evm-ethfw.dtbo
 k3-j742s2-evm-mcspi-loopback-dtbs := k3-j742s2-evm.dtb \

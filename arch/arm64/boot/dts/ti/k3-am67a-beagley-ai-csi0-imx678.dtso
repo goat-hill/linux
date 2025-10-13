@@ -14,12 +14,12 @@
 
 &{/chosen} {
 	overlays {
-		k3-am67a-beagley-ai-csi0-imx219.kernel = __TIMESTAMP__;
+		k3-am67a-beagley-ai-csi0-imx678.kernel = __TIMESTAMP__;
 	};
 };
 
 &{/} {
-	clk_imx219_fixed: imx219-xclk {
+	clk_imx678_fixed: imx678-xclk {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
 		clock-frequency = <24000000>;
@@ -35,11 +35,11 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 
-	imx219_0: sensor@10 {
-		compatible = "sony,imx219";
+	imx678_0: sensor@10 {
+		compatible = "sony,imx678";
 		reg = <0x10>;
 
-		clocks = <&clk_imx219_fixed>;
+		clocks = <&clk_imx678_fixed>;
 		clock-names = "xclk";
 
 		pinctrl-names = "default";
