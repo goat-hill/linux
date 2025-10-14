@@ -8,6 +8,15 @@
 
 #include <dt-bindings/gpio/gpio.h>
 
+#define TCA6408_PW_EN_0 	0
+#define TCA6408_PW_EN_1 	1
+#define TCA6408_RST_0 		2
+#define TCA6408_XMASTER0 	3
+#define TCA6408_SLAMODE0 	4
+#define TCA6408_SLAMODE1 	5
+#define TCA6408_SLAMODE2 	6
+#define TCA6408_TENABLE 	7
+
 &{/chosen} {
 	overlays {
 		k3-am67a-beagley-ai-csi0-imx678.kernel = __TIMESTAMP__;
@@ -23,12 +32,21 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 
+	// Framos adapter has GPIO expander for extra control
+	tca6408_20: tca6408@20 {
+		compatible = "ti,tca6408";
+		gpio-controller;
+		#gpio-cells = <2>;
+		reg = <0x20>;
+		status = "okay";
+	};
+
 	imx678_0: sensor@1a {
 		compatible = "sony,imx678";
 		reg = <0x1a>;
 		status = "okay";
 
-		reset-gpios = <&mcu_gpio0 15 GPIO_ACTIVE_HIGH>;
+		xmaster-gpio = <&tca6408_20 TCA6408_XMASTER0 GPIO_ACTIVE_LOW>;
 
 		port {
 			csi2_cam0: endpoint {
