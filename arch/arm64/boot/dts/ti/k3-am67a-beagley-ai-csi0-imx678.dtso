@@ -37,7 +37,7 @@
 				data-lanes = <1 2 3 4>; // Note: imx219 uses 2
 				clock-noncontinuous; // Note: Not set for imx219
 				link-frequencies =
-					/bits/ 64 <750000000 720000000 594000000 445500000>;
+					/bits/ 64 <720000000 594000000 445500000>;
 					// Note: Differs from 456000000 for imx219
 			};
 		};
