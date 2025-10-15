@@ -46,7 +46,7 @@
 		reg = <0x1a>;
 		status = "okay";
 
-		reset-gpios = <&mcu_gpio0 15 GPIO_ACTIVE_LOW>;
+		reset-gpios = <&mcu_gpio0 15 GPIO_ACTIVE_HIGH>;
 		xmaster-gpio = <&tca6408_20 TCA6408_XMASTER0 GPIO_ACTIVE_LOW>;
 
 		port {
