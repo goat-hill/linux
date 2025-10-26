@@ -468,8 +468,6 @@ static u32 imx678_get_format_code(struct imx678 *imx678, u32 code)
 {
 	unsigned int i;
 
-	lockdep_assert_held(&imx678->mutex);
-
 	for (i = 0; i < ARRAY_SIZE(codes); i++)
 		if (codes[i] == code)
 			break;
