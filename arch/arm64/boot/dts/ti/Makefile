@@ -201,6 +201,7 @@ dtb-$(CONFIG_ARCH_K3) += k3-j722s-evm-pwm.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j722s-evm-v3link-fusion.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-am67a-beagley-ai-edgeai-apps.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-am67a-beagley-ai-csi0-imx219.dtbo
+dtb-$(CONFIG_ARCH_K3) += k3-am67a-beagley-ai-csi0-imx678.dtbo
 
 # Boards with J784s4 SoC
 dtb-$(CONFIG_ARCH_K3) += k3-am69-sk.dtb
@@ -375,6 +376,8 @@ k3-am67a-beagley-ai-edgeai-apps-dtbs := k3-am67a-beagleyai.dtb \
 	k3-am67a-beagley-ai-edgeai-apps.dtbo
 k3-am67a-beagley-ai-csi0-imx219-dtbs := k3-am67a-beagleyai.dtb \
 	k3-am67a-beagley-ai-csi0-imx219.dtbo
+k3-am67a-beagley-ai-csi0-imx678-dtbs := k3-am67a-beagleyai.dtb \
+	k3-am67a-beagley-ai-csi0-imx678.dtbo
 k3-j742s2-evm-ethfw-dtbs := k3-j742s2-evm.dtb \
 	k3-j742s2-evm-ethfw.dtbo
 k3-j742s2-evm-mcspi-loopback-dtbs := k3-j742s2-evm.dtb \

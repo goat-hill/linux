@@ -1,0 +1,92 @@
+// SPDX-License-Identifier: GPL-2.0-only OR MIT
+/*
+ * DT Overlay for IMX678 on BeagleY-AI board.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+#define TCA6408_PW_EN_0 	0
+#define TCA6408_PW_EN_1 	1
+#define TCA6408_RST_0 		2
+#define TCA6408_XMASTER0 	3
+#define TCA6408_SLAMODE0 	4
+#define TCA6408_SLAMODE1 	5
+#define TCA6408_SLAMODE2 	6
+#define TCA6408_TENABLE 	7
+
+&{/chosen} {
+	overlays {
+		k3-am67a-beagley-ai-csi0-imx678.kernel = __TIMESTAMP__;
+	};
+};
+
+&main_i2c2 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&main_i2c2_pins_default>;
+	clock-frequency = <400000>;
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	// Framos adapter has GPIO expander for extra control
+	tca6408_20: tca6408@20 {
+		compatible = "ti,tca6408";
+		gpio-controller;
+		#gpio-cells = <2>;
+		reg = <0x20>;
+		status = "okay";
+	};
+
+	imx678_0: sensor@1a {
+		compatible = "sony,imx678";
+		reg = <0x1a>;
+		status = "okay";
+
+		reset-gpios = <&mcu_gpio0 15 GPIO_ACTIVE_HIGH>;
+		xmaster-gpio = <&tca6408_20 TCA6408_XMASTER0 GPIO_ACTIVE_LOW>;
+
+		port {
+			csi2_cam0: endpoint {
+				remote-endpoint = <&csi2rx0_in_sensor>;
+				clock-lanes = <0>;
+				data-lanes = <1 2 3 4>; // Note: imx219 uses 2
+				clock-noncontinuous; // Note: Not set for imx219
+				link-frequencies =
+					/bits/ 64 <720000000 594000000 445500000>;
+					// Note: Differs from 456000000 for imx219
+			};
+		};
+	};
+};
+
+&cdns_csi2rx0 {
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		csi0_port0: port@0 {
+			reg = <0>;
+			status = "okay";
+
+			csi2rx0_in_sensor: endpoint {
+				remote-endpoint = <&csi2_cam0>;
+				bus-type = <4>; /* CSI2 DPHY */ // Note: Left out (guessed) for imx219
+				clock-lanes = <0>;
+				data-lanes = <1 2 3 4>;
+				clock-noncontinuous;
+			};
+		};
+	};
+};
+
+&ti_csi2rx0 {
+	status = "okay";
+};
+
+&dphy0 {
+	status = "okay";
+};
