@@ -190,7 +190,7 @@ dtb-$(CONFIG_ARCH_K3) += k3-j721s2-evm-pcie1-ep.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j721s2-evm-ub954.dtbo
 
 # Boards with J722s SoC
-dtb-$(CONFIG_ARCH_K3) += k3-am67a-beagley-ai.dtb
+dtb-$(CONFIG_ARCH_K3) += k3-am67a-beagleyai.dtb
 dtb-$(CONFIG_ARCH_K3) += k3-j722s-evm.dtb
 dtb-$(CONFIG_ARCH_K3) += k3-j722s-evm-csi2-quad-rpi-cam-imx219.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j722s-evm-csi2-quad-tevi-ov5640.dtbo
@@ -199,6 +199,9 @@ dtb-$(CONFIG_ARCH_K3) += k3-j722s-evm-fpdlink-fusion.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j722s-evm-microtips-mf101hie-panel.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j722s-evm-pwm.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j722s-evm-v3link-fusion.dtbo
+dtb-$(CONFIG_ARCH_K3) += k3-am67a-beagley-ai-edgeai-apps.dtbo
+dtb-$(CONFIG_ARCH_K3) += k3-am67a-beagley-ai-csi0-imx219.dtbo
+dtb-$(CONFIG_ARCH_K3) += k3-am67a-beagley-ai-csi0-imx678.dtbo
 
 # Boards with J784s4 SoC
 dtb-$(CONFIG_ARCH_K3) += k3-am69-sk.dtb
@@ -369,6 +372,12 @@ k3-j722s-evm-microtips-mf101hie-panel-dtbs := k3-j722s-evm.dtb \
 	k3-j722s-evm-microtips-mf101hie-panel.dtbo
 k3-j722s-evm-v3link-fusion-dtbs := k3-j722s-evm.dtb \
 	k3-j722s-evm-v3link-fusion.dtbo
+k3-am67a-beagley-ai-edgeai-apps-dtbs := k3-am67a-beagleyai.dtb \
+	k3-am67a-beagley-ai-edgeai-apps.dtbo
+k3-am67a-beagley-ai-csi0-imx219-dtbs := k3-am67a-beagleyai.dtb \
+	k3-am67a-beagley-ai-csi0-imx219.dtbo
+k3-am67a-beagley-ai-csi0-imx678-dtbs := k3-am67a-beagleyai.dtb \
+	k3-am67a-beagley-ai-csi0-imx678.dtbo
 k3-j742s2-evm-ethfw-dtbs := k3-j742s2-evm.dtb \
 	k3-j742s2-evm-ethfw.dtbo
 k3-j742s2-evm-mcspi-loopback-dtbs := k3-j742s2-evm.dtb \
@@ -545,6 +554,7 @@ DTC_FLAGS_k3-j721s2-common-proc-board += -@
 DTC_FLAGS_k3-j721s2-evm-fusion += -@
 DTC_FLAGS_k3-j721s2-evm-ub954 += -@
 DTC_FLAGS_k3-j722s-evm += -@
+DTC_FLAGS_k3-am67a-beagleyai += -@
 DTC_FLAGS_k3-k3-j722s-evm-fpdlink-fusion += -@
 DTC_FLAGS_k3-j784s4-evm += -@
 DTC_FLAGS_k3-j784s4-evm-fpdlink-iv-fusion += -@
