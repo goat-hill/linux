@@ -474,7 +474,7 @@ static const struct imx678_reg raw12_framefmt_regs[] = {
 	{0x3EB6,        0x4D},
 };
 
-static struct vvcam_sccb_data_s raw12_clearHDR_framefmt_regs[] = {
+static const struct imx678_reg raw12_clearHDR_framefmt_regs[] = {
 	{ADBIT,                0x01},
 	{MDBIT,                0x01},
 	{0x3CF4,               0xAA},
@@ -488,7 +488,7 @@ static const struct imx678_reg raw10_framefmt_regs[] = {
 	{0x3EB6,        0x4D},
 };
 
-static struct vvcam_sccb_data_s raw10_clearHDR_framefmt_regs[] = {
+static const struct imx678_reg raw10_clearHDR_framefmt_regs[] = {
 	{ADBIT,                0x00},
 	{MDBIT,                0x00},
 	{0x3CF4,               0xA5},
