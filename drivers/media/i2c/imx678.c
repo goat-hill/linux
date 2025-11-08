@@ -45,6 +45,11 @@
 #define IMX678_ANA_GAIN_STEP			1
 #define IMX678_ANA_GAIN_DEFAULT			0
 
+#define IMX678_EXP_GAIN_MIN 0
+#define IMX678_EXP_GAIN_MAX 5
+#define IMX678_EXP_GAIN_STEP 1
+#define IMX678_EXP_GAIN_DEFAULT 2
+
 #define IMX678_BLACK_LEVEL_MIN			0
 #define IMX678_BLACK_LEVEL_STEP			1
 #define IMX678_MAX_BLACK_LEVEL_10BPP		1023
@@ -60,6 +65,19 @@ enum pad_types {
 	NUM_PADS
 };
 
+enum imx678_hdr_mode {
+	IMX678_HDR_MODE_LINEAR,
+	IMX678_HDR_MODE_CLEAR,
+	IMX678_HDR_MODE_DOL,
+	IMX678_HDR_MODE_COUNT,
+};
+
+static const char * const imx678_hdr_mode_menu[] = {
+	"Linear",
+	"DOL HDR (2-exp)",
+	"Clear HDR (DCG)",
+};
+
 #define IMX678_NATIVE_WIDTH		3856U
 #define IMX678_NATIVE_HEIGHT		2180U
 #define IMX678_PIXEL_ARRAY_LEFT		0U
@@ -70,6 +88,10 @@ enum pad_types {
 #define V4L2_CID_FRAME_RATE		(V4L2_CID_USER_IMX_BASE + 1)
 #define V4L2_CID_OPERATION_MODE		(V4L2_CID_USER_IMX_BASE + 2)
 #define V4L2_CID_SYNC_MODE		(V4L2_CID_USER_IMX_BASE + 3)
+#define V4L2_CID_HDR_MODE		(V4L2_CID_USER_IMX_BASE + 4)
+#define V4L2_CID_EXPOSURE_SHORT		(V4L2_CID_USER_IMX_BASE + 5)
+#define V4L2_CID_ANALOGUE_GAIN_SHORT	(V4L2_CID_USER_IMX_BASE + 6)
+#define V4L2_CID_EXPONENTIAL_GAIN		(V4L2_CID_USER_IMX_BASE + 7)
 
 struct imx678_reg_list {
 	unsigned int num_of_regs;
@@ -77,7 +99,6 @@ struct imx678_reg_list {
 };
 
 struct imx678_mode {
-
 	unsigned int width;
 	unsigned int height;
 	unsigned int linkfreq;
@@ -283,6 +304,7 @@ struct imx678 {
 	struct v4l2_ctrl *pixel_rate;
 	struct v4l2_ctrl *link_freq;
 	struct v4l2_ctrl *exposure;
+	struct v4l2_ctrl *gain;
 	struct v4l2_ctrl *framerate;
 	struct v4l2_ctrl *operation_mode;
 	struct v4l2_ctrl *sync_mode;
@@ -291,6 +313,18 @@ struct imx678 {
 	struct v4l2_ctrl *vblank;
 	struct v4l2_ctrl *hblank;
 	struct v4l2_ctrl *blklvl;
+
+	//
+	// HDR controls
+	//
+	struct v4l2_ctrl *hdr_mode;
+
+	// DOL mode
+	struct v4l2_ctrl *exposure_short;
+	struct v4l2_ctrl *gain_short;
+
+	// Clear mode
+	struct v4l2_ctrl *exponential_gain;
 
 	u64 line_time;
 	u32 frame_length;
@@ -802,10 +836,13 @@ static int imx678_set_ctrl(struct v4l2_ctrl *ctrl)
 
 	switch (ctrl->id) {
 	case V4L2_CID_ANALOGUE_GAIN:
-		ret = imx678_write_hold_reg(imx678, GAIN_LOW, 2, ctrl->val);
+		ret = imx678_write_hold_reg(imx678, GAIN_0_LOW, 2, ctrl->val);
 		break;
 	case V4L2_CID_EXPOSURE:
 		ret = imx678_set_exposure(imx678, ctrl->val);
+		break;
+	case V4L2_CID_HDR_SENSOR_MODE:
+		ret = imx678_set_hdr_mode(imx678, ctrl->val);
 		break;
 	case V4L2_CID_TEST_PATTERN:
 		imx678_set_test_pattern(imx678, ctrl->val);
@@ -821,6 +858,15 @@ static int imx678_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_BLACK_LEVEL:
 		ret = imx678_set_blklvl(imx678, ctrl->val);
+		break;
+	case V4L2_CID_EXPOSURE_SHORT:
+		ret = imx678_set_exposure_short(imx678, ctrl->val);
+		break;
+	case V4L2_CID_ANALOGUE_GAIN_SHORT:
+		ret = imx678_write_hold_reg(imx678, GAIN_1_LOW, 2, ctrl->val);
+		break;
+	case V4L2_CID_EXPONENTIAL_GAIN:
+		ret = imx678_write_hold_reg(imx678, EXP_GAIN, 1, ctrl->val);
 		break;
 	case V4L2_CID_OPERATION_MODE:
 		ret = imx678_set_operation_mode(imx678, ctrl->val);
@@ -1245,7 +1291,7 @@ static int imx678_power_on(struct device *dev)
 	struct imx678 *imx678 = to_imx678(sd);
 
 	if (strcmp(imx678->gmsl, "gmsl")) {
-        gpiod_set_value_cansleep(imx678->reset_gpio, 1);
+		gpiod_set_value_cansleep(imx678->reset_gpio, 1);
 		usleep_range(25000, 30000);
 	}
 
@@ -1433,6 +1479,13 @@ static int imx678_init_controls(struct imx678 *imx678)
 					IMX678_MIN_INTEGRATION_LINES,
 					0xFF, 1, 0xFF);
 
+	imx678->hdr_mode = v4l2_ctrl_new_std_menu_items(ctrl_hdlr, &imx678_ctrl_ops,
+		V4L2_CID_HDR_SENSOR_MODE,
+		IMX678_HDR_MODE_COUNT - 1,
+		0,
+		IMX678_HDR_MODE_LINEAR,
+		imx678_hdr_mode_menu);
+
 	imx678->framerate = v4l2_ctrl_new_custom(ctrl_hdlr,
 					imx678_ctrl_framerate, NULL);
 
@@ -1447,11 +1500,30 @@ static int imx678_init_controls(struct imx678 *imx678)
 					IMX678_BLACK_LEVEL_MIN, 0xFF,
 					IMX678_BLACK_LEVEL_STEP, 0xFF);
 
-	v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops, V4L2_CID_ANALOGUE_GAIN,
+	imx678->gain = v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops, V4L2_CID_ANALOGUE_GAIN,
 					IMX678_ANA_GAIN_MIN,
 					IMX678_ANA_GAIN_MAX,
 					IMX678_ANA_GAIN_STEP,
 					IMX678_ANA_GAIN_DEFAULT);
+
+	imx678->exposure_short = v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops,
+					V4L2_CID_EXPOSURE_SHORT,
+					IMX678_MIN_INTEGRATION_LINES,
+					0xFF, 1, IMX678_MIN_INTEGRATION_LINES);
+
+
+	imx678->gain_short = v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops, V4L2_CID_ANALOGUE_GAIN_SHORT,
+					IMX678_ANA_GAIN_MIN,
+					IMX678_ANA_GAIN_MAX,
+					IMX678_ANA_GAIN_STEP,
+					IMX678_ANA_GAIN_DEFAULT);
+
+	imx678->exponential_gain = v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops,
+		V4L2_CID_EXPONENTIAL_GAIN,
+		IMX678_EXP_GAIN_MIN,
+		IMX678_EXP_GAIN_MAX,
+		IMX678_EXP_GAIN_STEP,
+		IMX678_EXP_GAIN_DEFAULT);
 
 	imx678->hflip = v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops,
 					  V4L2_CID_HFLIP, 0, 1, 1, 0);

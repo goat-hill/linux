@@ -14,6 +14,7 @@
 #define WINMODE			0x3018
 #define WDMODE			0x301A
 #define ADDMODE			0x301B
+#define THIN_V_EN       0x301C
 
 #define VCMODE			0x301E
 
@@ -27,6 +28,7 @@
 #define VMAX_HIGH		0x302A
 #define HMAX_LOW		0x302C
 #define HMAX_HIGH		0x302D
+#define FDG_SEL0        0x3030
 
 #define PIX_HST_LOW		0x303C
 #define PIX_HST_HIGH		0x303D
@@ -40,17 +42,47 @@
 #define PIX_VWIDTH_LOW		0x3046
 #define PIX_VWIDTH_HIGH		0x3047
 
-#define SHR0_LOW		0x3050
-#define SHR0_MID		0x3051
-#define SHR0_HIGH		0x3052
+// Long exposure
+#define SHR0_LOW            0x3050
+#define SHR0_MID            0x3051
+#define SHR0_HIGH           0x3052
 
-#define GAIN_LOW		0x3070
-#define GAIN_HIGH		0x3071
+// Short exposure
+#define SHR1_LOW            0x3054
+#define SHR1_MID            0x3055
+#define SHR1_HIGH           0x3056
+
+// Very short exposure
+#define SHR2_LOW            0x3058
+#define SHR2_MID            0x3059
+#define SHR2_HIGH           0x305A
+
+// Long exposure
+#define GAIN_0_LOW          0x3070
+#define GAIN_0_HIGH         0x3071
+
+// Short exposure
+#define GAIN_1_LOW          0x3072
+#define GAIN_1_HIGH         0x3073
+
+// Very short exposure
+#define GAIN_2_LOW          0x3074
+#define GAIN_2_HIGH         0x3075
+
+#define RHS1_LOW            0x3060
+#define RHS1_MID            0x3061
+#define RHS1_HIGH           0x3062
+#define RHS2_LOW            0x3064
+#define RHS2_MID            0x3065
+#define RHS2_HIGH           0x3066
+
+#define EXP_GAIN            0x3081
 
 #define XVS_XHS_DRV		0x30A6
 
 #define BLKLEVEL_LOW		0x30DC
 #define BLKLEVEL_HIGH		0x30DD
+#define GAIN_PGC_FIDMD      0x3400
 
 #define TPG_EN_DUOUT		0x30E0
 #define TPG_PATSEL_DUOUT	0x30E2
@@ -521,6 +553,90 @@ static const struct imx678_reg mode_h2v2_binning[] = {
 	{WDMODE,		0x00},
 	{VCMODE,		0x01},
 
+};
+
+static struct imx678_reg imx678_setting_dol_hdr[] = {
+	{WINMODE,            0x00},
+	{WDMODE,             0x01},
+	{ADDMODE,            0x00},
+	{THIN_V_EN,          0x01},
+
+	{GAIN_PGC_FIDMD,     0x00},
+
+	{SHR0_LOW,          0x40},
+	{SHR0_MID,          0x0b},
+	{SHR1_LOW,          0x05},
+
+	{RHS1_LOW,           0x49},
+	{RHS1_MID,           0x00},
+
+	{0x355A,             0x64},
+};
+
+
+static struct imx678_reg imx678_setting_clear_hdr[] = {
+	{WINMODE,           0x00},
+	{WDMODE,            0x08},
+	{ADDMODE,           0x00},
+
+	{VMAX_LOW,          0x94},
+	{VMAX_MID,          0x11},
+
+	{FDG_SEL0,          0x02},
+	{SHR0_LOW,          0x06},
+	{SHR0_MID,          0x00},
+
+	{0x306B,            0x04},
+	{EXP_GAIN,          0x02},
+	{0x355A,            0x00},
+	{0x3A64,            0x01},
+
+	{0x3C37,            0x30},
+
+	{0x3CF2,            0x78},
+	{0x3CF3,            0x00},
+
+	{0x3EB4,            0x7B},
+	{0x3EB5,            0x00},
+	{0x3EB7,            0x40},
+
+	{0x3F24,            0x17},
+	{0x3FC4,            0x2D},
+
+	{0x4420,            0xFF},
+	{0x4421,            0x03},
+	{0x4422,            0x00},
+	{0x4423,            0x08},
+
+	{0x44A4,            0x37},
+	{0x44A6,            0x37},
+	{0x44A8,            0x37},
+	{0x44AA,            0x37},
+	{0x44B4,            0x37},
+	{0x44B6,            0x37},
+	{0x44B8,            0x37},
+	{0x44BA,            0x37},
+	{0x44C4,            0x37},
+	{0x44C6,            0x37},
+	{0x44C8,            0x37},
+
+	{0x453D,            0x18},
+	{0x453E,            0x18},
+	{0x453F,            0x11},
+	{0x4540,            0x11},
+	{0x4541,            0x11},
+	{0x4542,            0x11},
+	{0x4543,            0x11},
+	{0x4544,            0x11},
+	{0x4549,            0x00},
+	{0x454A,            0x00},
+	{0x454B,            0x04},
+	{0x454C,            0x04},
+	{0x454D,            0x04},
+	{0x454E,            0x04},
+	{0x454F,            0x04},
+	{0x4550,            0x04},
+	{0x454A,            0x04},
 };
 
 static const struct imx678_reg mode_enable_pattern_generator[] = {
