@@ -112,7 +112,6 @@ struct imx678_reg {
 #define IMX678_TO_MID_BYTE(x) (x >> 8)
 
 static const struct imx678_reg mode_common_regs[] = {
-
 	{LANEMODE,		0x03},
 	{INCK_SEL,		0x01},
 
@@ -473,42 +472,32 @@ static const struct imx678_reg mode_common_regs[] = {
 	{0x47C1,		0x01},
 	{0x47C2,		0x3E},
 	{0x47C3,		0x01},
-
 };
 
 static const struct imx678_reg raw12_framefmt_regs[] = {
-
 	{ADBIT,			0x01},
 	{MDBIT,			0x01},
-
 };
 
 static const struct imx678_reg raw10_framefmt_regs[] = {
-
 	{ADBIT,			0x00},
 	{MDBIT,			0x00},
-
 };
 
 static const struct imx678_reg raw12_h2v2_framefmt_regs[] = {
-
 	{ADBIT,			0x00},
 	{MDBIT,			0x01},
-
 };
 
 
 static const struct imx678_reg mode_3856x2180[] = {
-
 	{WINMODE,		0x00},
 	{ADDMODE,		0x00},
 	{WDMODE,		0x00},
 	{VCMODE,		0x01},
-
 };
 
 static const struct imx678_reg mode_crop_2608x1964[] = {
-
 	{WINMODE,		0x04},
 	{ADDMODE,		0x00},
 	{WDMODE,		0x00},
@@ -523,12 +512,10 @@ static const struct imx678_reg mode_crop_2608x1964[] = {
 	{PIX_VST_LOW,		IMX678_TO_LOW_BYTE(108)},
 	{PIX_VWIDTH_HIGH,	IMX678_TO_MID_BYTE(IMX678_CROP_2608x1964_HEIGHT)},
 	{PIX_VWIDTH_LOW,	IMX678_TO_LOW_BYTE(IMX678_CROP_2608x1964_HEIGHT)},
-
 };
 
 
 static const struct imx678_reg mode_crop_1920x1080[] = {
-
 	{WINMODE,		0x04},
 	{ADDMODE,		0x00},
 	{WDMODE,		0x00},
@@ -543,16 +530,13 @@ static const struct imx678_reg mode_crop_1920x1080[] = {
 	{PIX_VST_LOW,		IMX678_TO_LOW_BYTE(548)},
 	{PIX_VWIDTH_HIGH,	IMX678_TO_MID_BYTE(IMX678_CROP_1920x1080_HEIGHT)},
 	{PIX_VWIDTH_LOW,	IMX678_TO_LOW_BYTE(IMX678_CROP_1920x1080_HEIGHT)},
-
 };
 
 static const struct imx678_reg mode_h2v2_binning[] = {
-
 	{WINMODE,		0x00},
 	{ADDMODE,		0x01},
 	{WDMODE,		0x00},
 	{VCMODE,		0x01},
-
 };
 
 static struct imx678_reg imx678_setting_dol_hdr[] = {
@@ -640,21 +624,17 @@ static struct imx678_reg imx678_setting_clear_hdr[] = {
 };
 
 static const struct imx678_reg mode_enable_pattern_generator[] = {
-
 	{BLKLEVEL_LOW,		0x00},
 	{TPG_EN_DUOUT,		0x01},
 	{TPG_COLORWIDTH,	0x00},
 	{TESTCLKEN,		0x0A},
-
 };
 
 static const struct imx678_reg mode_disable_pattern_generator[] = {
-
 	{BLKLEVEL_LOW,		0x32},
 	{TPG_EN_DUOUT,		0x00},
 	{TPG_COLORWIDTH,	0x00},
 	{TESTCLKEN,		0x02},
-
 };
 
 enum {
