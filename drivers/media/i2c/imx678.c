@@ -29,10 +29,14 @@
 
 #define IMX678_XCLK_FREQ			74250000
 
-#define GMSL_LINK_FREQ_1500			(1500000000/2)
-#define IMX678_LINK_FREQ_1440			(1440000000/2)
-#define IMX678_LINK_FREQ_1188			(1188000000/2)
-#define IMX678_LINK_FREQ_891			(891000000/2)
+#define IMX678_LINK_FREQ_2376		(2376000000/2)
+#define IMX678_LINK_FREQ_2079		(2079000000/2)
+#define IMX678_LINK_FREQ_1782		(1782000000/2)
+#define IMX678_LINK_FREQ_1440		(1440000000/2)
+#define IMX678_LINK_FREQ_1188		(1188000000/2)
+#define IMX678_LINK_FREQ_891		(891000000/2)
+#define IMX678_LINK_FREQ_720		(720000000/2)
+#define IMX678_LINK_FREQ_594		(594000000/2)
 
 #define IMX678_MODE_STANDBY			0x01
 #define IMX678_MODE_STREAMING			0x00
@@ -57,12 +61,28 @@
 #define IMX678_DEFAULT_BLACK_LEVEL_10BPP	50
 #define IMX678_DEFAULT_BLACK_LEVEL_12BPP	200
 
-#define IMX678_EMBEDDED_LINE_WIDTH		16384
-#define IMX678_NUM_EMBEDDED_LINES		1
-
 enum pad_types {
 	IMAGE_PAD,
 	NUM_PADS
+};
+
+enum imx678_camera_mode {
+	IMX678_CAMERA_MODE_ALL_3856_2180,
+	IMX678_CAMERA_MODE_CROP_2608_1964,
+	IMX678_CAMERA_MODE_CROP_1920_1080,
+	IMX678_CAMERA_MODE_H2V2,
+	IMX678_CAMERA_MODE_DOL_HDR,
+	IMX678_CAMERA_MODE_CLEAR_HDR,
+};
+
+
+static const char * const imx678_camera_mode_menu[] = {
+	[IMX678_CAMERA_MODE_ALL_3856_2180] = "All 3856x2180",
+	[IMX678_CAMERA_MODE_CROP_2608_1964] = "Crop 2608x1964",
+	[IMX678_CAMERA_MODE_CROP_1920_1080] = "Crop 1920x1080",
+	[IMX678_CAMERA_MODE_H2V2] = "H2V2 1928x1090",
+	[IMX678_CAMERA_MODE_DOL_HDR] = "DOL HDR 3856x2180",
+	[IMX678_CAMERA_MODE_CLEAR_HDR] = "Clear HDR 3856x2180",
 };
 
 enum imx678_hdr_mode {
@@ -72,12 +92,6 @@ enum imx678_hdr_mode {
 	IMX678_HDR_MODE_COUNT,
 };
 
-static const char * const imx678_hdr_mode_menu[] = {
-	"Linear",
-	"DOL HDR (2-exp)",
-	"Clear HDR (DCG)",
-};
-
 #define IMX678_NATIVE_WIDTH		3856U
 #define IMX678_NATIVE_HEIGHT		2180U
 #define IMX678_PIXEL_ARRAY_LEFT		0U
@@ -85,13 +99,13 @@ static const char * const imx678_hdr_mode_menu[] = {
 #define IMX678_PIXEL_ARRAY_WIDTH	3856U
 #define IMX678_PIXEL_ARRAY_HEIGHT	2180U
 
-#define V4L2_CID_FRAME_RATE		(V4L2_CID_USER_IMX_BASE + 1)
-#define V4L2_CID_OPERATION_MODE		(V4L2_CID_USER_IMX_BASE + 2)
-#define V4L2_CID_SYNC_MODE		(V4L2_CID_USER_IMX_BASE + 3)
-#define V4L2_CID_HDR_MODE		(V4L2_CID_USER_IMX_BASE + 4)
-#define V4L2_CID_EXPOSURE_SHORT		(V4L2_CID_USER_IMX_BASE + 5)
-#define V4L2_CID_ANALOGUE_GAIN_SHORT	(V4L2_CID_USER_IMX_BASE + 6)
-#define V4L2_CID_EXPONENTIAL_GAIN		(V4L2_CID_USER_IMX_BASE + 7)
+#define V4L2_CID_CAMERA_MODE 			(V4L2_CID_USER_IMX_BASE + 0)
+#define V4L2_CID_FRAME_RATE				(V4L2_CID_USER_IMX_BASE + 1)
+#define V4L2_CID_OPERATION_MODE			(V4L2_CID_USER_IMX_BASE + 2)
+#define V4L2_CID_SYNC_MODE				(V4L2_CID_USER_IMX_BASE + 3)
+#define V4L2_CID_EXPOSURE_SHORT			(V4L2_CID_USER_IMX_BASE + 4)
+#define V4L2_CID_ANALOGUE_GAIN_SHORT	(V4L2_CID_USER_IMX_BASE + 5)
+#define V4L2_CID_EXPONENTIAL_GAIN		(V4L2_CID_USER_IMX_BASE + 6)
 
 struct imx678_reg_list {
 	unsigned int num_of_regs;
@@ -101,30 +115,26 @@ struct imx678_reg_list {
 struct imx678_mode {
 	unsigned int width;
 	unsigned int height;
-	unsigned int linkfreq;
-	unsigned int pixel_rate;
-	unsigned int min_fps;
-	unsigned int hmax;
 	struct v4l2_rect crop;
+	enum imx678_hdr_mode hdr_mode;
 	struct imx678_reg_list reg_list;
-	struct imx678_reg_list reg_list_format;
 };
 
 static const s64 imx678_link_freq_menu[] = {
-	[_IMX678_LINK_FREQ_1440] = IMX678_LINK_FREQ_1440,
-	[_IMX678_LINK_FREQ_1188] = IMX678_LINK_FREQ_1188,
-	[_IMX678_LINK_FREQ_891] = IMX678_LINK_FREQ_891,
+	[IMX678_2376_MBPS] = IMX678_LINK_FREQ_2376,
+	[IMX678_2079_MBPS] = IMX678_LINK_FREQ_2079,
+	[IMX678_1782_MBPS] = IMX678_LINK_FREQ_1782,
+	[IMX678_1440_MBPS] = IMX678_LINK_FREQ_1440,
+	[IMX678_1188_MBPS] = IMX678_LINK_FREQ_1188,
+	[IMX678_891_MBPS] = IMX678_LINK_FREQ_891,
+	[IMX678_720_MBPS] = IMX678_LINK_FREQ_720,
+	[IMX678_594_MBPS] = IMX678_LINK_FREQ_594,
 };
 
-static const struct imx678_mode modes_12bit[] = {
-	{
-		/* All pixel mode */
+static const struct imx678_mode modes_frame[] = {
+	[IMX678_CAMERA_MODE_ALL_3856_2180] = {
 		.width = IMX678_DEFAULT_WIDTH,
 		.height = IMX678_DEFAULT_HEIGHT,
-		.hmax = 0x44C,
-		.linkfreq = _IMX678_LINK_FREQ_1188,
-		.pixel_rate = 260280000,
-		.min_fps = 1000000,
 		.crop = {
 			.left = 0,
 			.top = 0,
@@ -135,19 +145,11 @@ static const struct imx678_mode modes_12bit[] = {
 			.num_of_regs = ARRAY_SIZE(mode_3856x2180),
 			.regs = mode_3856x2180,
 		},
-		.reg_list_format = {
-			.num_of_regs = ARRAY_SIZE(raw12_framefmt_regs),
-			.regs = raw12_framefmt_regs,
-		},
+		.hdr_mode = IMX678_HDR_MODE_LINEAR,
 	},
-	{
-		/* Crop mode */
+	[IMX678_CAMERA_MODE_CROP_2608_1964] = {
 		.width = IMX678_CROP_2608x1964_WIDTH,
 		.height = IMX678_CROP_2608x1964_HEIGHT,
-		.hmax = 0x294,
-		.linkfreq = _IMX678_LINK_FREQ_1440,
-		.pixel_rate = 293400000,
-		.min_fps = 1000000,
 		.crop = {
 			.left = 628,
 			.top = 108,
@@ -158,19 +160,11 @@ static const struct imx678_mode modes_12bit[] = {
 			.num_of_regs = ARRAY_SIZE(mode_crop_2608x1964),
 			.regs = mode_crop_2608x1964,
 		},
-		.reg_list_format = {
-			.num_of_regs = ARRAY_SIZE(raw12_framefmt_regs),
-			.regs = raw12_framefmt_regs,
-		},
+		.hdr_mode = IMX678_HDR_MODE_LINEAR,
 	},
-	{
-		/* Crop mode */
+	[IMX678_CAMERA_MODE_CROP_1920_1080] = {
 		.width = IMX678_CROP_1920x1080_WIDTH,
 		.height = IMX678_CROP_1920x1080_HEIGHT,
-		.hmax = 0x294,
-		.linkfreq = _IMX678_LINK_FREQ_1440,
-		.pixel_rate = 216000000,
-		.min_fps = 1000000,
 		.crop = {
 			.left = 972,
 			.top = 548,
@@ -181,19 +175,11 @@ static const struct imx678_mode modes_12bit[] = {
 			.num_of_regs = ARRAY_SIZE(mode_crop_1920x1080),
 			.regs = mode_crop_1920x1080,
 		},
-		.reg_list_format = {
-			.num_of_regs = ARRAY_SIZE(raw12_framefmt_regs),
-			.regs = raw12_framefmt_regs,
-		},
+		.hdr_mode = IMX678_HDR_MODE_LINEAR,
 	},
-	{
-		/* h2v2 mode */
+	[IMX678_CAMERA_MODE_H2V2] = {
 		.width = IMX678_MODE_BINNING_H2V2_WIDTH,
 		.height = IMX678_MODE_BINNING_H2V2_HEIGHT,
-		.hmax = 0x226,
-		.linkfreq = _IMX678_LINK_FREQ_1440,
-		.pixel_rate = 260280000,
-		.min_fps = 1000000,
 		.crop = {
 			.left = 0,
 			.top = 0,
@@ -204,22 +190,11 @@ static const struct imx678_mode modes_12bit[] = {
 			.num_of_regs = ARRAY_SIZE(mode_h2v2_binning),
 			.regs = mode_h2v2_binning,
 		},
-		.reg_list_format = {
-			.num_of_regs = ARRAY_SIZE(raw12_h2v2_framefmt_regs),
-			.regs = raw12_h2v2_framefmt_regs,
-		},
+		.hdr_mode = IMX678_HDR_MODE_LINEAR,
 	},
-};
-
-static const struct imx678_mode modes_10bit[] = {
-	{
-		/* All pixel mode */
+	[IMX678_CAMERA_MODE_DOL_HDR] = {
 		.width = IMX678_DEFAULT_WIDTH,
 		.height = IMX678_DEFAULT_HEIGHT,
-		.hmax = 0x44C,
-		.linkfreq = _IMX678_LINK_FREQ_891,
-		.pixel_rate = 260280000,
-		.min_fps = 1000000,
 		.crop = {
 			.left = 0,
 			.top = 0,
@@ -227,68 +202,31 @@ static const struct imx678_mode modes_10bit[] = {
 			.height = IMX678_DEFAULT_HEIGHT,
 		},
 		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_3856x2180),
-			.regs = mode_3856x2180,
+			.num_of_regs = ARRAY_SIZE(imx678_setting_dol_hdr),
+			.regs = imx678_setting_dol_hdr,
 		},
-		.reg_list_format = {
-			.num_of_regs = ARRAY_SIZE(raw10_framefmt_regs),
-			.regs = raw10_framefmt_regs,
-		},
+		.hdr_mode = IMX678_HDR_MODE_DOL,
 	},
-	{
-		/* Crop mode */
-		.width = IMX678_CROP_2608x1964_WIDTH,
-		.height = IMX678_CROP_2608x1964_HEIGHT,
-		.hmax = 0x294,
-		.linkfreq = _IMX678_LINK_FREQ_1440,
-		.pixel_rate = 293400000,
-		.min_fps = 1000000,
+	[IMX678_CAMERA_MODE_CLEAR_HDR] = {
+		.width = IMX678_DEFAULT_WIDTH,
+		.height = IMX678_DEFAULT_HEIGHT,
 		.crop = {
-			.left = 628,
-			.top = 108,
-			.width = IMX678_CROP_2608x1964_WIDTH,
-			.height = IMX678_CROP_2608x1964_HEIGHT,
+			.left = 0,
+			.top = 0,
+			.width = IMX678_DEFAULT_WIDTH,
+			.height = IMX678_DEFAULT_HEIGHT,
 		},
 		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_crop_2608x1964),
-			.regs = mode_crop_2608x1964,
+			.num_of_regs = ARRAY_SIZE(imx678_setting_clear_hdr),
+			.regs = imx678_setting_clear_hdr,
 		},
-		.reg_list_format = {
-			.num_of_regs = ARRAY_SIZE(raw10_framefmt_regs),
-			.regs = raw10_framefmt_regs,
-		},
-	},
-	{
-		/* Crop mode */
-		.width = IMX678_CROP_1920x1080_WIDTH,
-		.height = IMX678_CROP_1920x1080_HEIGHT,
-		.hmax = 0x226,
-		.linkfreq = _IMX678_LINK_FREQ_1440,
-		.pixel_rate = 259200000,
-		.min_fps = 1000000,
-		.crop = {
-			.left = 972,
-			.top = 548,
-			.width = IMX678_CROP_1920x1080_WIDTH,
-			.height = IMX678_CROP_1920x1080_HEIGHT,
-		},
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_crop_1920x1080),
-			.regs = mode_crop_1920x1080,
-		},
-		.reg_list_format = {
-			.num_of_regs = ARRAY_SIZE(raw10_framefmt_regs),
-			.regs = raw10_framefmt_regs,
-		},
-	},
+		.hdr_mode = IMX678_HDR_MODE_CLEAR,
+	}
 };
 
 static const u32 codes[] = {
-
 	MEDIA_BUS_FMT_SRGGB12_1X12,
-
 	MEDIA_BUS_FMT_SRGGB10_1X10,
-
 };
 
 struct imx678 {
@@ -314,11 +252,6 @@ struct imx678 {
 	struct v4l2_ctrl *hblank;
 	struct v4l2_ctrl *blklvl;
 
-	//
-	// HDR controls
-	//
-	struct v4l2_ctrl *hdr_mode;
-
 	// DOL mode
 	struct v4l2_ctrl *exposure_short;
 	struct v4l2_ctrl *gain_short;
@@ -341,27 +274,7 @@ static inline struct imx678 *to_imx678(struct v4l2_subdev *_sd)
 	return container_of(_sd, struct imx678, sd);
 }
 
-static inline void get_mode_table(unsigned int code,
-				  const struct imx678_mode **mode_list,
-				  unsigned int *num_modes)
-{
-	switch (code) {
-	case MEDIA_BUS_FMT_SRGGB12_1X12:
-		*mode_list = modes_12bit;
-		*num_modes = ARRAY_SIZE(modes_12bit);
-		break;
-	case MEDIA_BUS_FMT_SRGGB10_1X10:
-		*mode_list = modes_10bit;
-		*num_modes = ARRAY_SIZE(modes_10bit);
-		break;
-	default:
-		*mode_list = NULL;
-		*num_modes = 0;
-	}
-}
-
 static const char * const imx678_test_pattern_menu[] = {
-
 	[0] = "Disabled",
 	[1] = "000h Pattern",
 	[2] = "3FF(FFFh) Pattern",
@@ -375,22 +288,17 @@ static const char * const imx678_test_pattern_menu[] = {
 	[10] = "FFF/000h Pattern",
 	[11] = "H Color-bar",
 	[12] = "V Color-bar"
-
 };
 
 static const char * const imx678_operation_mode_menu[] = {
-
 	[MASTER_MODE] = "Master Mode",
 	[SLAVE_MODE] = "Slave Mode",
-
 };
 
 static const char * const imx678_sync_mode_menu[] = {
-
 	[NO_SYNC] = "No Sync",
 	[INTERNAL_SYNC] = "Internal Sync",
 	[EXTERNAL_SYNC] = "External Sync",
-
 };
 
 static int imx678_read_reg(struct imx678 *imx678, u16 reg, u32 len, u32 *val)
@@ -593,12 +501,10 @@ static int imx678_set_frame_rate(struct imx678 *imx678, u64 val)
 	}
 
 	return ret;
-
 }
 
 static void imx678_update_frame_rate(struct imx678 *imx678, u64 val)
 {
-
 	const struct imx678_mode *mode = imx678->mode;
 	u32 update_vblank;
 
@@ -613,7 +519,6 @@ static void imx678_update_frame_rate(struct imx678 *imx678, u64 val)
 				 update_vblank, 1, update_vblank);
 
 	__v4l2_ctrl_s_ctrl(imx678->vblank, update_vblank);
-
 }
 
 static int imx678_set_hmax_register(struct imx678 *imx678)
@@ -640,7 +545,7 @@ static int imx678_set_data_rate(struct imx678 *imx678)
 	int ret;
 
 	switch (imx678->mode->linkfreq) {
-	case _IMX678_LINK_FREQ_1440:
+	case IMX678_1440_MBPS:
 		ret = imx678_write_reg(imx678, DATARATE_SEL, 1, 0x03);
 		if (ret) {
 			dev_err(dev, "%s failed to write datarate reg.\n",
@@ -648,7 +553,7 @@ static int imx678_set_data_rate(struct imx678 *imx678)
 			return ret;
 		}
 		break;
-	case _IMX678_LINK_FREQ_1188:
+	case IMX678_1188_MBPS:
 		ret = imx678_write_reg(imx678, DATARATE_SEL, 1, 0x04);
 		if (ret) {
 			dev_err(dev, "%s failed to write datarate reg.\n",
@@ -656,7 +561,7 @@ static int imx678_set_data_rate(struct imx678 *imx678)
 			return ret;
 		}
 		break;
-	case _IMX678_LINK_FREQ_891:
+	case IMX678_891_MBPS:
 		ret = imx678_write_reg(imx678, DATARATE_SEL, 1, 0x05);
 		if (ret) {
 			dev_err(dev, "%s failed to write datarate reg.\n",
@@ -699,7 +604,6 @@ static int imx678_set_test_pattern(struct imx678 *imx678, u32 val)
 fail:
 	dev_err(dev, "%s: error setting test pattern\n", __func__);
 	return ret;
-
 }
 
 static void imx678_update_blklvl_range(struct imx678 *imx678)
@@ -840,9 +744,6 @@ static int imx678_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_EXPOSURE:
 		ret = imx678_set_exposure(imx678, ctrl->val);
-		break;
-	case V4L2_CID_HDR_SENSOR_MODE:
-		ret = imx678_set_hdr_mode(imx678, ctrl->val);
 		break;
 	case V4L2_CID_TEST_PATTERN:
 		imx678_set_test_pattern(imx678, ctrl->val);
@@ -1130,7 +1031,6 @@ static int imx678_get_selection(struct v4l2_subdev *sd,
 
 static int imx678_set_mode(struct imx678 *imx678)
 {
-
 	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
 	struct device *dev = &client->dev;
 	const struct imx678_reg_list *reg_list;
@@ -1452,6 +1352,11 @@ static int imx678_init_controls(struct imx678 *imx678)
 	mutex_init(&imx678->mutex);
 	ctrl_hdlr->lock = &imx678->mutex;
 
+	v4l2_ctrl_new_std_menu(ctrl_hdlr, &imx678_ctrl_ops,
+					V4L2_CID_CAMERA_MODE,
+					ARRAY_SIZE(modes_frame),
+					0, 0, imx678_camera_mode_menu);
+
 	imx678->pixel_rate = v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops,
 						V4L2_CID_PIXEL_RATE, 0, 0, 1, 0);
 	if (imx678->pixel_rate)
@@ -1479,13 +1384,6 @@ static int imx678_init_controls(struct imx678 *imx678)
 					IMX678_MIN_INTEGRATION_LINES,
 					0xFF, 1, 0xFF);
 
-	imx678->hdr_mode = v4l2_ctrl_new_std_menu_items(ctrl_hdlr, &imx678_ctrl_ops,
-		V4L2_CID_HDR_SENSOR_MODE,
-		IMX678_HDR_MODE_COUNT - 1,
-		0,
-		IMX678_HDR_MODE_LINEAR,
-		imx678_hdr_mode_menu);
-
 	imx678->framerate = v4l2_ctrl_new_custom(ctrl_hdlr,
 					imx678_ctrl_framerate, NULL);
 
@@ -1510,7 +1408,6 @@ static int imx678_init_controls(struct imx678 *imx678)
 					V4L2_CID_EXPOSURE_SHORT,
 					IMX678_MIN_INTEGRATION_LINES,
 					0xFF, 1, IMX678_MIN_INTEGRATION_LINES);
-
 
 	imx678->gain_short = v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops, V4L2_CID_ANALOGUE_GAIN_SHORT,
 					IMX678_ANA_GAIN_MIN,
@@ -1761,6 +1658,6 @@ static struct i2c_driver imx678_i2c_driver = {
 
 module_i2c_driver(imx678_i2c_driver);
 
-MODULE_AUTHOR("FRAMOS GmbH");
+MODULE_AUTHOR("FRAMOS GmbH, Brady Law");
 MODULE_DESCRIPTION("Sony IMX678 sensor driver");
 MODULE_LICENSE("GPL v2");

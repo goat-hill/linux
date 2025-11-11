@@ -638,9 +638,14 @@ static const struct imx678_reg mode_disable_pattern_generator[] = {
 };
 
 enum {
-	_IMX678_LINK_FREQ_1440,
-	_IMX678_LINK_FREQ_1188,
-	_IMX678_LINK_FREQ_891,
+	IMX678_2376_MBPS,
+	IMX678_2079_MBPS,
+	IMX678_1782_MBPS,
+	IMX678_1440_MBPS,
+	IMX678_1188_MBPS,
+	IMX678_891_MBPS,
+	IMX678_720_MBPS,
+	IMX678_594_MBPS,
 } link_freq;
 
 enum {
