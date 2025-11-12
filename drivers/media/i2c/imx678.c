@@ -5,8 +5,6 @@
  * imx678.c - Framos imx678.c driver
  */
 
-//#define DEBUG 1
-
 #include <linux/unaligned.h>
 #include <linux/delay.h>
 #include <linux/gpio/consumer.h>
@@ -41,18 +39,18 @@
 #define IMX678_MODE_STANDBY			0x01
 #define IMX678_MODE_STREAMING			0x00
 
-#define IMX678_MIN_SHR0_LENGTH			3
+#define IMX678_MIN_SHR0_LENGTH				3
 #define IMX678_MIN_INTEGRATION_LINES		1
 
-#define IMX678_ANA_GAIN_MIN			0
-#define IMX678_ANA_GAIN_MAX			240
+#define IMX678_ANA_GAIN_MIN				0
+#define IMX678_ANA_GAIN_MAX				240
 #define IMX678_ANA_GAIN_STEP			1
 #define IMX678_ANA_GAIN_DEFAULT			0
 
-#define IMX678_EXP_GAIN_MIN 0
-#define IMX678_EXP_GAIN_MAX 5
-#define IMX678_EXP_GAIN_STEP 1
-#define IMX678_EXP_GAIN_DEFAULT 2
+#define IMX678_EXP_GAIN_MIN 		0
+#define IMX678_EXP_GAIN_MAX 		5
+#define IMX678_EXP_GAIN_STEP 		1
+#define IMX678_EXP_GAIN_DEFAULT 	2
 
 #define IMX678_BLACK_LEVEL_MIN			0
 #define IMX678_BLACK_LEVEL_STEP			1
@@ -75,7 +73,6 @@ enum imx678_camera_mode {
 	IMX678_CAMERA_MODE_CLEAR_HDR,
 };
 
-
 static const char * const imx678_camera_mode_menu[] = {
 	[IMX678_CAMERA_MODE_ALL_3856_2180] = "All 3856x2180",
 	[IMX678_CAMERA_MODE_CROP_2608_1964] = "Crop 2608x1964",
@@ -89,10 +86,9 @@ enum imx678_hdr_mode {
 	IMX678_HDR_MODE_LINEAR,
 	IMX678_HDR_MODE_CLEAR,
 	IMX678_HDR_MODE_DOL,
-	IMX678_HDR_MODE_COUNT,
 };
 
-#define IMX678_NATIVE_WIDTH		3856U
+#define IMX678_NATIVE_WIDTH			3856U
 #define IMX678_NATIVE_HEIGHT		2180U
 #define IMX678_PIXEL_ARRAY_LEFT		0U
 #define IMX678_PIXEL_ARRAY_TOP		0U
@@ -118,6 +114,7 @@ struct imx678_mode {
 	struct v4l2_rect crop;
 	enum imx678_hdr_mode hdr_mode;
 	struct imx678_reg_list reg_list;
+	bool is_binning;
 };
 
 static const s64 imx678_link_freq_menu[] = {
@@ -146,6 +143,7 @@ static const struct imx678_mode modes_frame[] = {
 			.regs = mode_3856x2180,
 		},
 		.hdr_mode = IMX678_HDR_MODE_LINEAR,
+		.is_binning = false,
 	},
 	[IMX678_CAMERA_MODE_CROP_2608_1964] = {
 		.width = IMX678_CROP_2608x1964_WIDTH,
@@ -161,6 +159,7 @@ static const struct imx678_mode modes_frame[] = {
 			.regs = mode_crop_2608x1964,
 		},
 		.hdr_mode = IMX678_HDR_MODE_LINEAR,
+		.is_binning = false,
 	},
 	[IMX678_CAMERA_MODE_CROP_1920_1080] = {
 		.width = IMX678_CROP_1920x1080_WIDTH,
@@ -176,6 +175,7 @@ static const struct imx678_mode modes_frame[] = {
 			.regs = mode_crop_1920x1080,
 		},
 		.hdr_mode = IMX678_HDR_MODE_LINEAR,
+		.is_binning = false,
 	},
 	[IMX678_CAMERA_MODE_H2V2] = {
 		.width = IMX678_MODE_BINNING_H2V2_WIDTH,
@@ -191,6 +191,7 @@ static const struct imx678_mode modes_frame[] = {
 			.regs = mode_h2v2_binning,
 		},
 		.hdr_mode = IMX678_HDR_MODE_LINEAR,
+		.is_binning = true,
 	},
 	[IMX678_CAMERA_MODE_DOL_HDR] = {
 		.width = IMX678_DEFAULT_WIDTH,
@@ -206,6 +207,7 @@ static const struct imx678_mode modes_frame[] = {
 			.regs = imx678_setting_dol_hdr,
 		},
 		.hdr_mode = IMX678_HDR_MODE_DOL,
+		.is_binning = false,
 	},
 	[IMX678_CAMERA_MODE_CLEAR_HDR] = {
 		.width = IMX678_DEFAULT_WIDTH,
@@ -221,12 +223,20 @@ static const struct imx678_mode modes_frame[] = {
 			.regs = imx678_setting_clear_hdr,
 		},
 		.hdr_mode = IMX678_HDR_MODE_CLEAR,
+		.is_binning = false,
 	}
 };
 
-static const u32 codes[] = {
-	MEDIA_BUS_FMT_SRGGB12_1X12,
+static const u32 bayer_formats[] = {
+	MEDIA_BUS_FMT_SRGGB12_1X12, // no flip
+	MEDIA_BUS_FMT_SGRBG12_1X12, // H flip
+	MEDIA_BUS_FMT_SGBRG12_1X12, // V flip
+	MEDIA_BUS_FMT_SBGGR12_1X12, // H+V flip
+
 	MEDIA_BUS_FMT_SRGGB10_1X10,
+	MEDIA_BUS_FMT_SGRBG10_1X10,
+	MEDIA_BUS_FMT_SGBRG10_1X10,
+	MEDIA_BUS_FMT_SBGGR10_1X10,
 };
 
 struct imx678 {
@@ -408,16 +418,19 @@ static int imx678_write_table(struct imx678 *imx678,
 
 static u32 imx678_get_format_code(struct imx678 *imx678, u32 code)
 {
-	unsigned int i;
+	// Standard modes are 0 mod 4
+	// H flip - 1 mod 4
+	// V flip - 2 mod 4
+	// H+V flip - 3 mod 4
+	unsigned int i = (im678->hflip->val) ? 1 : 0
+		+ (imx678->vflip->val) ? 2 : 0;
 
-	for (i = 0; i < ARRAY_SIZE(codes); i++)
-		if (codes[i] == code)
-			break;
+	for (i; i < ARRAY_SIZE(bayer_formats); i += 4) {
+		if (bayer_formats[i] == code)
+			return bayer_formats[i];
+	}
 
-	if (i >= ARRAY_SIZE(codes))
-		i = 0;
-
-	return codes[i];
+	return bayer_formats[0];
 }
 
 static int imx678_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
@@ -429,10 +442,9 @@ static int imx678_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 
 	mutex_lock(&imx678->mutex);
 
-	fmt_img->width = modes_12bit[0].width;
-	fmt_img->height = modes_12bit[0].height;
-	fmt_img->code = imx678_get_format_code(imx678,
-						MEDIA_BUS_FMT_SRGGB12_1X12);
+	fmt_img->width = modes_frame[0].width;
+	fmt_img->height = modes_frame[0].height;
+	fmt_img->code = MEDIA_BUS_FMT_SRGGB12_1X12;
 	fmt_img->field = V4L2_FIELD_NONE;
 
 	crop = v4l2_subdev_state_get_crop(fh->state, IMAGE_PAD);
@@ -444,16 +456,6 @@ static int imx678_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 	mutex_unlock(&imx678->mutex);
 
 	return 0;
-}
-
-static bool imx678_is_binning_mode(struct imx678 *imx678)
-{
-	const struct imx678_mode *mode = imx678->mode;
-
-	if (mode == &modes_12bit[3])
-		return true;
-	else
-		return false;
 }
 
 static int imx678_set_exposure(struct imx678 *imx678, u64 val)
@@ -547,33 +549,28 @@ static int imx678_set_data_rate(struct imx678 *imx678)
 	switch (imx678->mode->linkfreq) {
 	case IMX678_1440_MBPS:
 		ret = imx678_write_reg(imx678, DATARATE_SEL, 1, 0x03);
-		if (ret) {
-			dev_err(dev, "%s failed to write datarate reg.\n",
-									__func__);
-			return ret;
-		}
+		if (ret)
+			goto fail;
 		break;
 	case IMX678_1188_MBPS:
 		ret = imx678_write_reg(imx678, DATARATE_SEL, 1, 0x04);
-		if (ret) {
-			dev_err(dev, "%s failed to write datarate reg.\n",
-									__func__);
-			return ret;
-		}
+		if (ret)
+			goto fail;
 		break;
 	case IMX678_891_MBPS:
 		ret = imx678_write_reg(imx678, DATARATE_SEL, 1, 0x05);
-		if (ret) {
-			dev_err(dev, "%s failed to write datarate reg.\n",
-									__func__);
-			return ret;
-		}
+		if (ret)
+			goto fail;
 		break;
 	default:
 		dev_err(dev, "%s datarate reg not set!\n", __func__);
 		return 1;
 	}
 
+	return ret;
+
+fail:
+	dev_err(dev, "%s failed to set data rate\n", __func__);
 	return ret;
 }
 
@@ -733,6 +730,9 @@ static int imx678_set_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_VBLANK:
 		imx678_adjust_exposure_range(imx678);
 		break;
+	case V4L2_CID_CAMERA_MODE:
+		imx678->mode = modes_frame[ctrl->val];
+		break;
 	}
 
 	if (pm_runtime_get_if_in_use(&client->dev) == 0)
@@ -746,7 +746,7 @@ static int imx678_set_ctrl(struct v4l2_ctrl *ctrl)
 		ret = imx678_set_exposure(imx678, ctrl->val);
 		break;
 	case V4L2_CID_TEST_PATTERN:
-		imx678_set_test_pattern(imx678, ctrl->val);
+		ret = imx678_set_test_pattern(imx678, ctrl->val);
 		break;
 	case V4L2_CID_HFLIP:
 		ret = imx678_write_reg(imx678, HREVERSE, 1, ctrl->val);
@@ -796,11 +796,10 @@ static int imx678_enum_mbus_code(struct v4l2_subdev *sd,
 		return -EINVAL;
 
 	if (code->pad == IMAGE_PAD) {
-		if (code->index >= (ARRAY_SIZE(codes)))
+		if (code->index >= (ARRAY_SIZE(bayer_formats)))
 			return -EINVAL;
 
-		code->code = imx678_get_format_code(imx678,
-							codes[code->index]);
+		code->code = bayer_formats[code->index];
 	}
 
 	return 0;
@@ -856,37 +855,6 @@ static void imx678_update_image_pad_format(struct imx678 *imx678,
 	imx678_reset_colorspace(&fmt->format);
 }
 
-static int imx678_get_pad_format(struct v4l2_subdev *sd,
-				 struct v4l2_subdev_state *sd_state,
-				 struct v4l2_subdev_format *fmt)
-{
-	struct imx678 *imx678 = to_imx678(sd);
-
-	if (fmt->pad >= NUM_PADS)
-		return -EINVAL;
-
-	mutex_lock(&imx678->mutex);
-
-	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-		struct v4l2_mbus_framefmt *try_fmt =
-			v4l2_subdev_state_get_format(sd_state,
-							fmt->pad);
-		try_fmt->code = imx678_get_format_code(imx678, try_fmt->code);
-		fmt->format = *try_fmt;
-	} else {
-		if (fmt->pad == IMAGE_PAD) {
-			imx678_update_image_pad_format(imx678, imx678->mode,
-								fmt);
-			fmt->format.code =
-					imx678_get_format_code(imx678,
-								imx678->fmt_code);
-		}
-	}
-
-	mutex_unlock(&imx678->mutex);
-	return 0;
-}
-
 static void imx678_set_limits(struct imx678 *imx678)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
@@ -914,7 +882,7 @@ static void imx678_set_limits(struct imx678 *imx678)
 	imx678->line_time = (mode->hmax*IMX678_G_FACTOR) / (IMX678_XCLK_FREQ);
 	dev_dbg(dev, "%s: line time: %lld\n", __func__, imx678->line_time);
 
-	if (imx678_is_binning_mode(imx678))
+	if (mode->is_binning)
 		imx678->frame_length = mode->height * 2 + vblank;
 	else
 		imx678->frame_length = mode->height + vblank;
@@ -938,8 +906,8 @@ static int imx678_set_pad_format(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_format *fmt)
 {
 	struct v4l2_mbus_framefmt *framefmt;
-	const struct imx678_mode *mode;
 	struct imx678 *imx678 = to_imx678(sd);
+	const struct imx678_mode *mode = imx678->mode;
 
 	if (fmt->pad >= NUM_PADS)
 		return -EINVAL;
@@ -947,26 +915,14 @@ static int imx678_set_pad_format(struct v4l2_subdev *sd,
 	mutex_lock(&imx678->mutex);
 
 	if (fmt->pad == IMAGE_PAD) {
-		const struct imx678_mode *mode_list;
-		unsigned int num_modes;
-
 		fmt->format.code = imx678_get_format_code(imx678, fmt->format.code);
-
-		get_mode_table(fmt->format.code, &mode_list, &num_modes);
-
-		mode = v4l2_find_nearest_size(mode_list,
-						num_modes,
-						width, height,
-						fmt->format.width,
-						fmt->format.height);
 		imx678_update_image_pad_format(imx678, mode, fmt);
 
 		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
 			framefmt = v4l2_subdev_state_get_format(sd_state,
 								fmt->pad);
 			*framefmt = fmt->format;
-		} else if (imx678->mode != mode) {
-			imx678->mode = mode;
+		} else if (imx678->fmt_code != fmt->format.code) {
 			imx678->fmt_code = fmt->format.code;
 			imx678_set_limits(imx678);
 		}
@@ -1281,7 +1237,7 @@ static const struct v4l2_subdev_video_ops imx678_video_ops = {
 
 static const struct v4l2_subdev_pad_ops imx678_pad_ops = {
 	.enum_mbus_code = imx678_enum_mbus_code,
-	.get_fmt = imx678_get_pad_format,
+	.get_fmt = v4l2_subdev_get_fmt,
 	.set_fmt = imx678_set_pad_format,
 	.get_selection = imx678_get_selection,
 	.enum_frame_size = imx678_enum_frame_size,
@@ -1578,7 +1534,7 @@ static int imx678_probe(struct i2c_client *client)
 		return PTR_ERR(imx678->xmaster);
 	}
 
-	imx678->mode = &modes_12bit[0];
+	imx678->mode = &modes_frame[0];
 	imx678->fmt_code = MEDIA_BUS_FMT_SRGGB12_1X12;
 
 	pm_runtime_set_active(dev);
