@@ -89,7 +89,6 @@ static const char * const imx678_frame_mode_menu[] = {
 #define IMX678_PIXEL_ARRAY_HEIGHT	2180U
 
 #define V4L2_CID_FRAME_MODE 			(V4L2_CID_USER_IMX_BASE + 0)
-#define V4L2_CID_FRAME_RATE				(V4L2_CID_USER_IMX_BASE + 1)
 #define V4L2_CID_OPERATION_MODE			(V4L2_CID_USER_IMX_BASE + 2)
 #define V4L2_CID_SYNC_MODE				(V4L2_CID_USER_IMX_BASE + 3)
 #define V4L2_CID_EXPOSURE_SHORT			(V4L2_CID_USER_IMX_BASE + 4)
@@ -117,10 +116,10 @@ static const s64 imx678_link_freq_menu[] = {
 };
 
 struct imx678_link_mode {
-	enum link_freq link_freq;
-	enum bit_depth bit_depth;
-	unsigned uint16_t hmax;
-	unsigned uint16_t modes;
+	unsigned int link_freq;
+	unsigned int bit_depth;
+	unsigned int hmax;
+	unsigned int modes;
 };
 
 #define LINK_MODE_ALL_PIXEL 	(1 << 0)
@@ -130,14 +129,14 @@ struct imx678_link_mode {
 #define LINK_MODE_CLEAR_HDR		(1 << 4)
 #define LINK_MODE_CLEAR_BINNING	(1 << 5)
 
-struct imx678_frame_mode {
+struct imx678_frame_mode_config {
 	unsigned int width;
 	unsigned int height;
-	uint8_t frame_count;
-	unsigned uint16_t flag;
+	unsigned int frame_count;
+	unsigned int flag;
 };
 
-static const struct imx678_frame_mode frame_mode_configs[] = {
+static const struct imx678_frame_mode_config frame_mode_configs[] = {
 	[IMX678_HDR_MODE_ALL_PIXEL] = {
 		.width = IMX678_DEFAULT_WIDTH,
 		.height = IMX678_DEFAULT_HEIGHT,
@@ -289,7 +288,7 @@ struct imx678 {
 
 	const char *gmsl;
 
-	const struct imx678_frame_mode *frame_mode;
+	const struct imx678_frame_mode_config *mode;
 	struct mutex mutex;
 	bool streaming;
 };
@@ -437,10 +436,10 @@ static u32 imx678_get_format_code(struct imx678 *imx678, u32 code)
 	// H flip - 1 mod 4
 	// V flip - 2 mod 4
 	// H+V flip - 3 mod 4
-	unsigned int i = (im678->hflip->val) ? 1 : 0
+	unsigned int i = (imx678->hflip->val) ? 1 : 0
 		+ (imx678->vflip->val) ? 2 : 0;
 
-	for (i; i < ARRAY_SIZE(bayer_formats); i += 4) {
+	for (; i < ARRAY_SIZE(bayer_formats); i += 4) {
 		if (bayer_formats[i] == code)
 			return bayer_formats[i];
 	}
@@ -477,7 +476,7 @@ static int imx678_set_exposure(struct imx678 *imx678, u64 val)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
 	struct device *dev = &client->dev;
-	const struct imx678_frame_mode *mode = imx678->mode;
+	const struct imx678_frame_mode_config *mode = imx678->mode;
 	u64 exposure;
 	int ret;
 
@@ -494,7 +493,7 @@ static int imx678_set_exposure(struct imx678 *imx678, u64 val)
 
 static void imx678_adjust_exposure_range(struct imx678 *imx678)
 {
-	const struct imx678_frame_mode *mode = imx678->mode;
+	const struct imx678_frame_mode_config *mode = imx678->mode;
 	u64 exposure_max;
 
 	exposure_max = imx678->vblank->val + mode->height - IMX678_MIN_SHR0_LENGTH;
@@ -504,7 +503,7 @@ static void imx678_adjust_exposure_range(struct imx678 *imx678)
 				exposure_max);
 }
 
-static int imx678_set_frame_rate(struct imx678 *imx678, u64 val)
+static int imx678_set_frame_interval(struct imx678 *imx678, u64 val)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
 	struct device *dev = &client->dev;
@@ -522,7 +521,7 @@ static int imx678_set_frame_rate(struct imx678 *imx678, u64 val)
 
 static void imx678_update_frame_rate(struct imx678 *imx678, u64 val)
 {
-	const struct imx678_frame_mode *mode = imx678->mode;
+	const struct imx678_frame_mode_config *mode = imx678->mode;
 	u32 update_vblank;
 
 	imx678->frame_length = (IMX678_M_FACTOR * IMX678_G_FACTOR) /
@@ -542,7 +541,7 @@ static int imx678_set_hmax_register(struct imx678 *imx678)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
 	struct device *dev = &client->dev;
-	const struct imx678_frame_mode *mode = imx678->mode;
+	const struct imx678_frame_mode_config *mode = imx678->mode;
 	int ret;
 
 	ret = imx678_write_hold_reg(imx678, HMAX_LOW, 2, mode->hmax);
@@ -629,6 +628,54 @@ static int imx678_set_blklvl(struct imx678 *imx678, u64 val)
 	return ret;
 }
 
+static void imx678_set_limits(struct imx678 *imx678)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
+	struct device *dev = &client->dev;
+	const struct imx678_frame_mode_config *mode = imx678->mode;
+	u64 vblank, max_framerate;
+
+	dev_dbg(dev, "%s: mode: %dx%d\n", __func__, mode->width, mode->height);
+
+	vblank = IMX678_MIN_FRAME_LENGTH_DELTA;
+
+	__v4l2_ctrl_modify_range(imx678->vblank, vblank,
+				 vblank, 1, vblank);
+	dev_dbg(dev, "%s: vblank: %lld\n", __func__, vblank);
+
+	__v4l2_ctrl_modify_range(imx678->pixel_rate, mode->pixel_rate,
+				 mode->pixel_rate, 1, mode->pixel_rate);
+	dev_dbg(dev, "%s: pixel rate: %d\n", __func__, mode->pixel_rate);
+
+	__v4l2_ctrl_s_ctrl(imx678->link_freq, mode->linkfreq);
+
+	dev_dbg(dev, "%s: linkfreq: %lld\n", __func__,
+					imx678_link_freq_menu[mode->linkfreq]);
+
+	imx678->line_time = (mode->hmax*IMX678_G_FACTOR) / (IMX678_XCLK_FREQ);
+	dev_dbg(dev, "%s: line time: %lld\n", __func__, imx678->line_time);
+
+	imx678->frame_length = mode->height * mode->frame_count + vblank;
+	dev_dbg(dev, "%s: frame length: %d\n", __func__, imx678->frame_length);
+
+	max_framerate = (IMX678_G_FACTOR * IMX678_M_FACTOR) /
+				(imx678->frame_length * imx678->line_time);
+
+	__v4l2_ctrl_modify_range(imx678->framerate, mode->min_fps,
+				 max_framerate, 1, max_framerate);
+	dev_dbg(dev, "%s: max framerate: %lld\n", __func__, max_framerate);
+
+	imx678_update_blklvl_range(imx678);
+
+	__v4l2_ctrl_s_ctrl(imx678->framerate, max_framerate);
+}
+
+static void imx678_set_frame_mode(struct imx678 *imx678, u64 val)
+{
+	imx678->mode = frame_mode_configs[ctrl->val];
+	imx678_set_limits(imx678);
+}
+
 static int imx678_set_operation_mode(struct imx678 *imx678, u32 val)
 {
 	gpiod_set_raw_value_cansleep(imx678->xmaster, val);
@@ -705,14 +752,11 @@ static int imx678_set_ctrl(struct v4l2_ctrl *ctrl)
 	int ret = 0;
 
 	switch (ctrl->id) {
-	case V4L2_CID_FRAME_RATE:
-		imx678_update_frame_rate(imx678, ctrl->val);
-		break;
 	case V4L2_CID_VBLANK:
 		imx678_adjust_exposure_range(imx678);
 		break;
 	case V4L2_CID_FRAME_MODE:
-		imx678->mode = frame_mode_configs[ctrl->val];
+		imx678_set_frame_mode(imx678, ctrl->val);
 		break;
 	}
 
@@ -734,9 +778,6 @@ static int imx678_set_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_VFLIP:
 		ret = imx678_write_reg(imx678, VREVERSE, 1, ctrl->val);
-		break;
-	case V4L2_CID_FRAME_RATE:
-		ret = imx678_set_frame_rate(imx678, ctrl->val);
 		break;
 	case V4L2_CID_BLACK_LEVEL:
 		ret = imx678_set_blklvl(imx678, ctrl->val);
@@ -771,8 +812,6 @@ static int imx678_enum_mbus_code(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_state *sd_state,
 				 struct v4l2_subdev_mbus_code_enum *code)
 {
-	struct imx678 *imx678 = to_imx678(sd);
-
 	if (code->pad >= NUM_PADS)
 		return -EINVAL;
 
@@ -796,21 +835,13 @@ static int imx678_enum_frame_size(struct v4l2_subdev *sd,
 		return -EINVAL;
 
 	if (fse->pad == IMAGE_PAD) {
-		const struct imx678_frame_mode *mode_list;
-		unsigned int num_modes;
-
-		get_mode_table(fse->code, &mode_list, &num_modes);
-
-		if (fse->index >= num_modes)
-			return -EINVAL;
-
 		if (fse->code != imx678_get_format_code(imx678, fse->code))
 			return -EINVAL;
 
-		fse->min_width = mode_list[fse->index].width;
-		fse->max_width = fse->min_width;
-		fse->min_height = mode_list[fse->index].height;
-		fse->max_height = fse->min_height;
+		fse->min_width = imx678->mode->width;
+		fse->max_width = imx678->mode->width;
+		fse->min_height = imx678->mode->height;
+		fse->max_height = imx678->mode->height;
 	}
 
 	return 0;
@@ -827,7 +858,7 @@ static void imx678_reset_colorspace(struct v4l2_mbus_framefmt *fmt)
 }
 
 static void imx678_update_image_pad_format(struct imx678 *imx678,
-						const struct imx678_frame_mode *mode,
+						const struct imx678_frame_mode_config *mode,
 						struct v4l2_subdev_format *fmt)
 {
 	fmt->format.width = mode->width;
@@ -836,55 +867,13 @@ static void imx678_update_image_pad_format(struct imx678 *imx678,
 	imx678_reset_colorspace(&fmt->format);
 }
 
-static void imx678_set_limits(struct imx678 *imx678)
-{
-	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
-	struct device *dev = &client->dev;
-	const struct imx678_frame_mode *mode = imx678->mode;
-	u64 vblank, max_framerate;
-
-	dev_dbg(dev, "%s: mode: %dx%d\n", __func__, mode->width, mode->height);
-
-	vblank = IMX678_MIN_FRAME_LENGTH_DELTA;
-
-	__v4l2_ctrl_modify_range(imx678->vblank, vblank,
-				 vblank, 1, vblank);
-	dev_dbg(dev, "%s: vblank: %lld\n", __func__, vblank);
-
-	__v4l2_ctrl_modify_range(imx678->pixel_rate, mode->pixel_rate,
-				 mode->pixel_rate, 1, mode->pixel_rate);
-	dev_dbg(dev, "%s: pixel rate: %d\n", __func__, mode->pixel_rate);
-
-	__v4l2_ctrl_s_ctrl(imx678->link_freq, mode->linkfreq);
-
-	dev_dbg(dev, "%s: linkfreq: %lld\n", __func__,
-					imx678_link_freq_menu[mode->linkfreq]);
-
-	imx678->line_time = (mode->hmax*IMX678_G_FACTOR) / (IMX678_XCLK_FREQ);
-	dev_dbg(dev, "%s: line time: %lld\n", __func__, imx678->line_time);
-
-	imx678->frame_length = mode->height * mode->frame_count + vblank;
-	dev_dbg(dev, "%s: frame length: %d\n", __func__, imx678->frame_length);
-
-	max_framerate = (IMX678_G_FACTOR * IMX678_M_FACTOR) /
-				(imx678->frame_length * imx678->line_time);
-
-	__v4l2_ctrl_modify_range(imx678->framerate, mode->min_fps,
-				 max_framerate, 1, max_framerate);
-	dev_dbg(dev, "%s: max framerate: %lld\n", __func__, max_framerate);
-
-	imx678_update_blklvl_range(imx678);
-
-	__v4l2_ctrl_s_ctrl(imx678->framerate, max_framerate);
-}
-
 static int imx678_set_pad_format(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_state *sd_state,
 				 struct v4l2_subdev_format *fmt)
 {
 	struct v4l2_mbus_framefmt *framefmt;
 	struct imx678 *imx678 = to_imx678(sd);
-	const struct imx678_frame_mode *mode = imx678->mode;
+	const struct imx678_frame_mode_config *mode = imx678->mode;
 
 	if (fmt->pad >= NUM_PADS)
 		return -EINVAL;
@@ -997,7 +986,7 @@ static int imx678_set_mode(struct imx678 *imx678)
 		return ret;
 	}
 
-	ret = imx678_write_reg(imx678, DATARATE_SEL, 1, imx678->linkfreq->val);
+	ret = imx678_write_reg(imx678, DATARATE_SEL, 1, imx678->link_freq->val);
 	if (ret) {
 		dev_err(dev, "%s failed to set data rate\n", __func__);
 		return ret;
@@ -1218,6 +1207,8 @@ static const struct v4l2_subdev_pad_ops imx678_pad_ops = {
 	.set_fmt = imx678_set_pad_format,
 	.get_selection = imx678_get_selection,
 	.enum_frame_size = imx678_enum_frame_size,
+	.get_frame_interval = v4l2_subdev_get_frame_interval,
+	.set_frame_interval = imx678_set_frame_interval,
 };
 
 static const struct v4l2_subdev_ops imx678_subdev_ops = {
@@ -1228,19 +1219,6 @@ static const struct v4l2_subdev_ops imx678_subdev_ops = {
 
 static const struct v4l2_subdev_internal_ops imx678_internal_ops = {
 	.open = imx678_open,
-};
-
-static struct v4l2_ctrl_config imx678_ctrl_framerate[] = {
-	{
-		.ops = &imx678_ctrl_ops,
-		.id = V4L2_CID_FRAME_RATE,
-		.name = "Frame rate",
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 1,
-		.max = 0xFFFF,
-		.def = 0xFFFF,
-		.step = 1,
-	},
 };
 
 static struct v4l2_ctrl_config imx678_ctrl_operation_mode[] = {
