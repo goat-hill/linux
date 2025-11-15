@@ -105,7 +105,7 @@ enum {
 	IMX678_BIT_DEPTH_12,
 } bit_depth;
 
-static const s64 imx678_link_freq_menu[] = {
+static const s64 imx678_link_freq_map[] = {
 	[IMX678_2376_MBPS] = IMX678_LINK_FREQ_2376,
 	[IMX678_2079_MBPS] = IMX678_LINK_FREQ_2079,
 	[IMX678_1782_MBPS] = IMX678_LINK_FREQ_1782,
@@ -116,10 +116,11 @@ static const s64 imx678_link_freq_menu[] = {
 };
 
 struct imx678_link_mode {
-	unsigned int link_freq;
+	unsigned int freq_idx;
 	unsigned int bit_depth;
 	unsigned int hmax;
 	unsigned int modes;
+	unsigned int lane_count;
 };
 
 #define LINK_MODE_ALL_PIXEL 	(1 << 0)
@@ -178,66 +179,79 @@ static const struct imx678_frame_mode_config frame_mode_configs[] = {
 static const struct imx678_link_mode all_pixel_link_modes[] = {
 	// 25 fps, hmax 1320
 	{
-		.link_freq = IMX678_720_MBPS, 	.bit_depth = 10, .hmax = 1320,
+		.freq_idx = IMX678_720_MBPS, 	.bit_depth = 10, .hmax = 1320,
 		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR | LINK_MODE_DOL_HDR,
+		.lane_count = 4,
 	},
 	{
-		.link_freq = IMX678_720_MBPS, 	.bit_depth = 12, .hmax = 1320,
+		.freq_idx = IMX678_720_MBPS, 	.bit_depth = 12, .hmax = 1320,
 		.modes = LINK_MODE_ALL_BINNING | LINK_MODE_DOL_BINNING | LINK_MODE_CLEAR_BINNING,
+		.lane_count = 4,
 	},
 	{
-		.link_freq = IMX678_891_MBPS, 	.bit_depth = 12, .hmax = 1320,
+		.freq_idx = IMX678_891_MBPS, 	.bit_depth = 12, .hmax = 1320,
 		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR | LINK_MODE_DOL_HDR,
+		.lane_count = 4,
 	},
 
 	// 30 fps, hmax 1100
 	{
-		.link_freq = IMX678_720_MBPS, 	.bit_depth = 12, .hmax = 1100,
+		.freq_idx = IMX678_720_MBPS, 	.bit_depth = 12, .hmax = 1100,
 		.modes = LINK_MODE_ALL_BINNING | LINK_MODE_DOL_BINNING | LINK_MODE_CLEAR_BINNING,
+		.lane_count = 4,
 	},
 	{
-		.link_freq = IMX678_891_MBPS, 	.bit_depth = 10, .hmax = 1100,
+		.freq_idx = IMX678_891_MBPS, 	.bit_depth = 10, .hmax = 1100,
 		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR | LINK_MODE_DOL_HDR,
+		.lane_count = 4,
 	},
 	{
-		.link_freq = IMX678_1188_MBPS,	.bit_depth = 12, .hmax = 1100,
+		.freq_idx = IMX678_1188_MBPS,	.bit_depth = 12, .hmax = 1100,
 		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR | LINK_MODE_DOL_HDR,
+		.lane_count = 4,
 	},
 
 	// 50 fps, hmax 660
 	{
-		.link_freq = IMX678_1440_MBPS,	.bit_depth = 10, .hmax = 660,
+		.freq_idx = IMX678_1440_MBPS,	.bit_depth = 10, .hmax = 660,
 		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR | LINK_MODE_DOL_HDR,
+		.lane_count = 4,
 	},
 	{
-		.link_freq = IMX678_1440_MBPS,	.bit_depth = 12, .hmax = 660,
+		.freq_idx = IMX678_1440_MBPS,	.bit_depth = 12, .hmax = 660,
 		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR |
 			LINK_MODE_ALL_BINNING | LINK_MODE_DOL_HDR | LINK_MODE_DOL_BINNING |
 			LINK_MODE_CLEAR_BINNING,
+		.lane_count = 4,
 	}, 
 
 	// 60 fps, hmax 550
 	{
-		.link_freq = IMX678_1440_MBPS,	.bit_depth = 10, .hmax = 550,
+		.freq_idx = IMX678_1440_MBPS,	.bit_depth = 10, .hmax = 550,
 		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR | LINK_MODE_DOL_HDR,
+		.lane_count = 4,
 	},
 	{
-		.link_freq = IMX678_1440_MBPS,	.bit_depth = 12, .hmax = 550,
+		.freq_idx = IMX678_1440_MBPS,	.bit_depth = 12, .hmax = 550,
 		.modes = LINK_MODE_ALL_BINNING | LINK_MODE_DOL_BINNING,
+		.lane_count = 4,
 	},
 	{
-		.link_freq = IMX678_1782_MBPS,	.bit_depth = 12, .hmax = 550,
+		.freq_idx = IMX678_1782_MBPS,	.bit_depth = 12, .hmax = 550,
 		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_DOL_HDR,
+		.lane_count = 4,
 	},
 
 	// 72 fps, hmax 458
 	{
-		.link_freq = IMX678_2079_MBPS,	.bit_depth = 10, .hmax = 458,
+		.freq_idx = IMX678_2079_MBPS,	.bit_depth = 10, .hmax = 458,
 		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_DOL_HDR,
+		.lane_count = 4,
 	},
 	{
-		.link_freq = IMX678_2376_MBPS,	.bit_depth = 12, .hmax = 458,
+		.freq_idx = IMX678_2376_MBPS,	.bit_depth = 12, .hmax = 458,
 		.modes = LINK_MODE_ALL_BINNING,
+		.lane_count = 4,
 	}
 };
 
@@ -289,6 +303,7 @@ struct imx678 {
 	const char *gmsl;
 
 	const struct imx678_frame_mode_config *mode;
+	const struct imx678_link_mode *link_mode;
 	struct mutex mutex;
 	bool streaming;
 };
@@ -541,14 +556,13 @@ static int imx678_set_hmax_register(struct imx678 *imx678)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
 	struct device *dev = &client->dev;
-	const struct imx678_frame_mode_config *mode = imx678->mode;
 	int ret;
 
-	ret = imx678_write_hold_reg(imx678, HMAX_LOW, 2, mode->hmax);
+	ret = imx678_write_hold_reg(imx678, HMAX_LOW, 2, imx678->link_mode->hmax);
 	if (ret)
 		dev_err(dev, "%s failed to write HMAX register\n", __func__);
 
-	dev_dbg(dev, "%s: hmax: 0x%x\n", __func__, mode->hmax);
+	dev_dbg(dev, "%s: hmax: 0x%x\n", __func__, imx678->link_mode->hmax);
 
 	return ret;
 
@@ -633,6 +647,7 @@ static void imx678_set_limits(struct imx678 *imx678)
 	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
 	struct device *dev = &client->dev;
 	const struct imx678_frame_mode_config *mode = imx678->mode;
+	const struct imx678_link_mode *link = imx678->link_mode;
 	u64 vblank, max_framerate;
 
 	dev_dbg(dev, "%s: mode: %dx%d\n", __func__, mode->width, mode->height);
@@ -643,16 +658,20 @@ static void imx678_set_limits(struct imx678 *imx678)
 				 vblank, 1, vblank);
 	dev_dbg(dev, "%s: vblank: %lld\n", __func__, vblank);
 
-	__v4l2_ctrl_modify_range(imx678->pixel_rate, mode->pixel_rate,
-				 mode->pixel_rate, 1, mode->pixel_rate);
-	dev_dbg(dev, "%s: pixel rate: %d\n", __func__, mode->pixel_rate);
+	unsigned int pixel_rate = imx678_link_freq_map[link->freq_idx] *
+		2 * link->lane_count / link->bit_depth;
+	__v4l2_ctrl_modify_range(imx678->pixel_rate,
+				pixel_rate,
+				pixel_rate,
+				1,
+				pixel_rate);
+	dev_dbg(dev, "%s: pixel rate: %d\n", __func__, pixel_rate);
 
-	__v4l2_ctrl_s_ctrl(imx678->link_freq, mode->linkfreq);
+	__v4l2_ctrl_s_ctrl(imx678->link_freq, link->freq_idx);
 
-	dev_dbg(dev, "%s: linkfreq: %lld\n", __func__,
-					imx678_link_freq_menu[mode->linkfreq]);
+	dev_dbg(dev, "%s: linkfreq: %lld\n", __func__, imx678_link_freq_map[link->freq_idx]);
 
-	imx678->line_time = (mode->hmax*IMX678_G_FACTOR) / (IMX678_XCLK_FREQ);
+	imx678->line_time = (imx678->link_mode->hmax*IMX678_G_FACTOR) / (IMX678_XCLK_FREQ);
 	dev_dbg(dev, "%s: line time: %lld\n", __func__, imx678->line_time);
 
 	imx678->frame_length = mode->height * mode->frame_count + vblank;
@@ -1276,8 +1295,8 @@ static int imx678_init_controls(struct imx678 *imx678)
 	imx678->link_freq =
 		v4l2_ctrl_new_int_menu(ctrl_hdlr, &imx678_ctrl_ops,
 					V4L2_CID_LINK_FREQ,
-					ARRAY_SIZE(imx678_link_freq_menu) - 1, 0,
-					imx678_link_freq_menu);
+					ARRAY_SIZE(imx678_link_freq_map) - 1, 0,
+					imx678_link_freq_map);
 	if (imx678->link_freq)
 		imx678->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
@@ -1414,13 +1433,13 @@ static int imx678_check_hwcfg(struct device *dev, struct i2c_client *client)
 		goto error_out;
 	}
 
-	if (ep_cfg.nr_of_link_frequencies != ARRAY_SIZE(imx678_link_freq_menu)) {
+	if (ep_cfg.nr_of_link_frequencies != ARRAY_SIZE(imx678_link_freq_map)) {
 		dev_err(dev, "Link frequency missing in dtree\n");
 		goto error_out;
 	}
 
-	for (int i = 0; i < ARRAY_SIZE(imx678_link_freq_menu); i++) {
-		if (ep_cfg.link_frequencies[i] != imx678_link_freq_menu[i]) {
+	for (int i = 0; i < ARRAY_SIZE(imx678_link_freq_map); i++) {
+		if (ep_cfg.link_frequencies[i] != imx678_link_freq_map[i]) {
 			dev_err(dev, "no supported link freq found\n");
 			goto error_out;
 		}
