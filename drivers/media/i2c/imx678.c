@@ -65,21 +65,21 @@ enum pad_types {
 };
 
 enum imx678_camera_mode {
-	IMX678_CAMERA_MODE_ALL_3856_2180,
-	IMX678_CAMERA_MODE_CROP_2608_1964,
-	IMX678_CAMERA_MODE_CROP_1920_1080,
-	IMX678_CAMERA_MODE_H2V2,
+	IMX678_CAMERA_MODE_ALL_PIXEL,
+	IMX678_CAMERA_MODE_ALL_PIXEL_BINNING,
 	IMX678_CAMERA_MODE_DOL_HDR,
+	IMX678_CAMERA_MODE_DOL_HDR_BINNING,
 	IMX678_CAMERA_MODE_CLEAR_HDR,
+	IMX678_CAMERA_MODE_CLEAR_HDR_BINNING,
 };
 
 static const char * const imx678_camera_mode_menu[] = {
-	[IMX678_CAMERA_MODE_ALL_3856_2180] = "All 3856x2180",
-	[IMX678_CAMERA_MODE_CROP_2608_1964] = "Crop 2608x1964",
-	[IMX678_CAMERA_MODE_CROP_1920_1080] = "Crop 1920x1080",
-	[IMX678_CAMERA_MODE_H2V2] = "H2V2 1928x1090",
-	[IMX678_CAMERA_MODE_DOL_HDR] = "DOL HDR 3856x2180",
-	[IMX678_CAMERA_MODE_CLEAR_HDR] = "Clear HDR 3856x2180",
+	[IMX678_CAMERA_MODE_ALL_PIXEL] = "All Pixel",
+	[IMX678_CAMERA_MODE_ALL_PIXEL_BINNING] = "All Pixel H2V2 Binning",
+	[IMX678_CAMERA_MODE_DOL_HDR] = "DOL HDR",
+	[IMX678_CAMERA_MODE_DOL_HDR_BINNING] = "DOL HDR H2V2 Binning",
+	[IMX678_CAMERA_MODE_CLEAR_HDR] = "Clear HDR",
+	[IMX678_CAMERA_MODE_CLEAR_HDR_BINNING] = "Clear HDR Binning",
 };
 
 enum imx678_hdr_mode {
@@ -117,6 +117,11 @@ struct imx678_mode {
 	bool is_binning;
 };
 
+enum {
+	IMX678_BIT_DEPTH_10,
+	IMX678_BIT_DEPTH_12,
+} bit_depth;
+
 static const s64 imx678_link_freq_menu[] = {
 	[IMX678_2376_MBPS] = IMX678_LINK_FREQ_2376,
 	[IMX678_2079_MBPS] = IMX678_LINK_FREQ_2079,
@@ -125,11 +130,90 @@ static const s64 imx678_link_freq_menu[] = {
 	[IMX678_1188_MBPS] = IMX678_LINK_FREQ_1188,
 	[IMX678_891_MBPS] = IMX678_LINK_FREQ_891,
 	[IMX678_720_MBPS] = IMX678_LINK_FREQ_720,
-	[IMX678_594_MBPS] = IMX678_LINK_FREQ_594,
+};
+
+struct imx678_link_mode {
+	enum link_freq link_freq;
+	enum bit_depth bit_depth;
+	unsigned uint16_t hmax;
+	unsigned uint16_t modes;
+}
+
+#define LINK_MODE_ALL_PIXEL 	(1 << 0)
+#define LINK_MODE_ALL_BINNING	(1 << 1)
+#define LINK_MODE_DOL_HDR		(1 << 2)
+#define LINK_MODE_DOL_BINNING	(1 << 3)
+#define LINK_MODE_CLEAR_HDR		(1 << 4)
+#define LINK_MODE_CLEAR_BINNING	(1 << 5)
+
+static const struct imx678_link_mode all_pixel_link_modes = {
+	// 25 fps, hmax 1320
+	{
+		.link_freq = IMX678_720_MBPS, 	.bit_depth = 10, .hmax = 1320,
+		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR | LINK_MODE_DOL_HDR,
+	},
+	{
+		.link_freq = IMX678_720_MBPS, 	.bit_depth = 12, .hmax = 1320,
+		.modes = LINK_MODE_ALL_BINNING | LINK_MODE_DOL_BINNING | LINK_MODE_CLEAR_BINNING,
+	},
+	{
+		.link_freq = IMX678_891_MBPS, 	.bit_depth = 12, .hmax = 1320,
+		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR | LINK_MODE_DOL_HDR,
+	},
+
+	// 30 fps, hmax 1100
+	{
+		.link_freq = IMX678_720_MBPS, 	.bit_depth = 12, .hmax = 1100,
+		.modes = LINK_MODE_ALL_BINNING | LINK_MODE_DOL_BINNING | LINK_MODE_CLEAR_BINNING,
+	},
+	{
+		.link_freq = IMX678_891_MBPS, 	.bit_depth = 10, .hmax = 1100,
+		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR | LINK_MODE_DOL_HDR,
+	},
+	{
+		.link_freq = IMX678_1188_MBPS,	.bit_depth = 12, .hmax = 1100,
+		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR | LINK_MODE_DOL_HDR,
+	},
+
+	// 50 fps, hmax 660
+	{
+		.link_freq = IMX678_1440_MBPS,	.bit_depth = 10, .hmax = 660,
+		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR | LINK_MODE_DOL_HDR,
+	},
+	{
+		.link_freq = IMX678_1440_MBPS,	.bit_depth = 12, .hmax = 660,
+		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR |
+			LINK_MODE_ALL_BINNING | LINK_MODE_DOL_HDR | LINK_MODE_DOL_BINNING |
+			LINK_MODE_CLEAR_BINNING,
+	}, 
+
+	// 60 fps, hmax 550
+	{
+		.link_freq = IMX678_1440_MBPS,	.bit_depth = 10, .hmax = 550,
+		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR | LINK_MODE_DOL_HDR,
+	},
+	{
+		.link_freq = IMX678_1440_MBPS,	.bit_depth = 12, .hmax = 550,
+		.modes = LINK_MODE_ALL_BINNING | LINK_MODE_DOL_BINNING,
+	},
+	{
+		.link_freq = IMX678_1782_MBPS,	.bit_depth = 12, .hmax = 550,
+		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_DOL_HDR,
+	},
+
+	// 72 fps, hmax 458
+	{
+		.link_freq = IMX678_2079_MBPS,	.bit_depth = 10, .hmax = 458,
+		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_DOL_HDR,
+	},
+	{
+		.link_freq = IMX678_2376_MBPS,	.bit_depth = 12, .hmax = 458,
+		.modes = LINK_MODE_ALL_BINNING,
+	}
 };
 
 static const struct imx678_mode modes_frame[] = {
-	[IMX678_CAMERA_MODE_ALL_3856_2180] = {
+	[IMX678_CAMERA_MODE_ALL_PIXEL] = {
 		.width = IMX678_DEFAULT_WIDTH,
 		.height = IMX678_DEFAULT_HEIGHT,
 		.crop = {
@@ -144,54 +228,6 @@ static const struct imx678_mode modes_frame[] = {
 		},
 		.hdr_mode = IMX678_HDR_MODE_LINEAR,
 		.is_binning = false,
-	},
-	[IMX678_CAMERA_MODE_CROP_2608_1964] = {
-		.width = IMX678_CROP_2608x1964_WIDTH,
-		.height = IMX678_CROP_2608x1964_HEIGHT,
-		.crop = {
-			.left = 628,
-			.top = 108,
-			.width = IMX678_CROP_2608x1964_WIDTH,
-			.height = IMX678_CROP_2608x1964_HEIGHT,
-		},
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_crop_2608x1964),
-			.regs = mode_crop_2608x1964,
-		},
-		.hdr_mode = IMX678_HDR_MODE_LINEAR,
-		.is_binning = false,
-	},
-	[IMX678_CAMERA_MODE_CROP_1920_1080] = {
-		.width = IMX678_CROP_1920x1080_WIDTH,
-		.height = IMX678_CROP_1920x1080_HEIGHT,
-		.crop = {
-			.left = 972,
-			.top = 548,
-			.width = IMX678_CROP_1920x1080_WIDTH,
-			.height = IMX678_CROP_1920x1080_HEIGHT,
-		},
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_crop_1920x1080),
-			.regs = mode_crop_1920x1080,
-		},
-		.hdr_mode = IMX678_HDR_MODE_LINEAR,
-		.is_binning = false,
-	},
-	[IMX678_CAMERA_MODE_H2V2] = {
-		.width = IMX678_MODE_BINNING_H2V2_WIDTH,
-		.height = IMX678_MODE_BINNING_H2V2_HEIGHT,
-		.crop = {
-			.left = 0,
-			.top = 0,
-			.width = 2 * IMX678_MODE_BINNING_H2V2_WIDTH,
-			.height = 2 * IMX678_MODE_BINNING_H2V2_HEIGHT,
-		},
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_h2v2_binning),
-			.regs = mode_h2v2_binning,
-		},
-		.hdr_mode = IMX678_HDR_MODE_LINEAR,
-		.is_binning = true,
 	},
 	[IMX678_CAMERA_MODE_DOL_HDR] = {
 		.width = IMX678_DEFAULT_WIDTH,
@@ -538,40 +574,6 @@ static int imx678_set_hmax_register(struct imx678 *imx678)
 
 	return ret;
 
-}
-
-static int imx678_set_data_rate(struct imx678 *imx678)
-{
-	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
-	struct device *dev = &client->dev;
-	int ret;
-
-	switch (imx678->mode->linkfreq) {
-	case IMX678_1440_MBPS:
-		ret = imx678_write_reg(imx678, DATARATE_SEL, 1, 0x03);
-		if (ret)
-			goto fail;
-		break;
-	case IMX678_1188_MBPS:
-		ret = imx678_write_reg(imx678, DATARATE_SEL, 1, 0x04);
-		if (ret)
-			goto fail;
-		break;
-	case IMX678_891_MBPS:
-		ret = imx678_write_reg(imx678, DATARATE_SEL, 1, 0x05);
-		if (ret)
-			goto fail;
-		break;
-	default:
-		dev_err(dev, "%s datarate reg not set!\n", __func__);
-		return 1;
-	}
-
-	return ret;
-
-fail:
-	dev_err(dev, "%s failed to set data rate\n", __func__);
-	return ret;
 }
 
 static int imx678_set_test_pattern(struct imx678 *imx678, u32 val)
@@ -1020,7 +1022,7 @@ static int imx678_set_mode(struct imx678 *imx678)
 		return ret;
 	}
 
-	ret = imx678_set_data_rate(imx678);
+	ret = imx678_write_reg(imx678, DATARATE_SEL, 1, imx678->linkfreq->val);
 	if (ret) {
 		dev_err(dev, "%s failed to set data rate\n", __func__);
 		return ret;
