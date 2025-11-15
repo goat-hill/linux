@@ -23,7 +23,6 @@
 #define IMX678_K_FACTOR				1000LL
 #define IMX678_M_FACTOR				1000000LL
 #define IMX678_G_FACTOR				1000000000LL
-#define IMX678_T_FACTOR				1000000000000LL
 
 #define IMX678_XCLK_FREQ			74250000
 
@@ -36,7 +35,7 @@
 #define IMX678_LINK_FREQ_720		(720000000/2)
 #define IMX678_LINK_FREQ_594		(594000000/2)
 
-#define IMX678_MODE_STANDBY			0x01
+#define IMX678_MODE_STANDBY				0x01
 #define IMX678_MODE_STREAMING			0x00
 
 #define IMX678_MIN_SHR0_LENGTH				3
@@ -64,28 +63,22 @@ enum pad_types {
 	NUM_PADS
 };
 
-enum imx678_camera_mode {
-	IMX678_CAMERA_MODE_ALL_PIXEL,
-	IMX678_CAMERA_MODE_ALL_PIXEL_BINNING,
-	IMX678_CAMERA_MODE_DOL_HDR,
-	IMX678_CAMERA_MODE_DOL_HDR_BINNING,
-	IMX678_CAMERA_MODE_CLEAR_HDR,
-	IMX678_CAMERA_MODE_CLEAR_HDR_BINNING,
+enum imx678_frame_mode {
+	IMX678_HDR_MODE_ALL_PIXEL,
+	IMX678_HDR_MODE_BINNING,
+	IMX678_HDR_MODE_DOL_HDR,
+	IMX678_HDR_MODE_DOL_HDR_BINNING,
+	IMX678_HDR_MODE_CLEAR_HDR,
+	IMX678_HDR_MODE_CLEAR_HDR_BINNING,
 };
 
-static const char * const imx678_camera_mode_menu[] = {
-	[IMX678_CAMERA_MODE_ALL_PIXEL] = "All Pixel",
-	[IMX678_CAMERA_MODE_ALL_PIXEL_BINNING] = "All Pixel H2V2 Binning",
-	[IMX678_CAMERA_MODE_DOL_HDR] = "DOL HDR",
-	[IMX678_CAMERA_MODE_DOL_HDR_BINNING] = "DOL HDR H2V2 Binning",
-	[IMX678_CAMERA_MODE_CLEAR_HDR] = "Clear HDR",
-	[IMX678_CAMERA_MODE_CLEAR_HDR_BINNING] = "Clear HDR Binning",
-};
-
-enum imx678_hdr_mode {
-	IMX678_HDR_MODE_LINEAR,
-	IMX678_HDR_MODE_CLEAR,
-	IMX678_HDR_MODE_DOL,
+static const char * const imx678_frame_mode_menu[] = {
+	[IMX678_HDR_MODE_ALL_PIXEL] = "All pixel (HDR off)",
+	[IMX678_HDR_MODE_BINNING] = "H2V2 binning (HDR off)",
+	[IMX678_HDR_MODE_DOL_HDR] = "DOL HDR",
+	[IMX678_HDR_MODE_DOL_HDR_BINNING] = "DOL HDR + H2V2 binning",
+	[IMX678_HDR_MODE_CLEAR_HDR] = "Clear HDR",
+	[IMX678_HDR_MODE_CLEAR_HDR_BINNING] = "Clear HDR + H2V2 binning",
 };
 
 #define IMX678_NATIVE_WIDTH			3856U
@@ -95,7 +88,7 @@ enum imx678_hdr_mode {
 #define IMX678_PIXEL_ARRAY_WIDTH	3856U
 #define IMX678_PIXEL_ARRAY_HEIGHT	2180U
 
-#define V4L2_CID_CAMERA_MODE 			(V4L2_CID_USER_IMX_BASE + 0)
+#define V4L2_CID_FRAME_MODE 			(V4L2_CID_USER_IMX_BASE + 0)
 #define V4L2_CID_FRAME_RATE				(V4L2_CID_USER_IMX_BASE + 1)
 #define V4L2_CID_OPERATION_MODE			(V4L2_CID_USER_IMX_BASE + 2)
 #define V4L2_CID_SYNC_MODE				(V4L2_CID_USER_IMX_BASE + 3)
@@ -106,15 +99,6 @@ enum imx678_hdr_mode {
 struct imx678_reg_list {
 	unsigned int num_of_regs;
 	const struct imx678_reg *regs;
-};
-
-struct imx678_mode {
-	unsigned int width;
-	unsigned int height;
-	struct v4l2_rect crop;
-	enum imx678_hdr_mode hdr_mode;
-	struct imx678_reg_list reg_list;
-	bool is_binning;
 };
 
 enum {
@@ -137,7 +121,7 @@ struct imx678_link_mode {
 	enum bit_depth bit_depth;
 	unsigned uint16_t hmax;
 	unsigned uint16_t modes;
-}
+};
 
 #define LINK_MODE_ALL_PIXEL 	(1 << 0)
 #define LINK_MODE_ALL_BINNING	(1 << 1)
@@ -146,7 +130,53 @@ struct imx678_link_mode {
 #define LINK_MODE_CLEAR_HDR		(1 << 4)
 #define LINK_MODE_CLEAR_BINNING	(1 << 5)
 
-static const struct imx678_link_mode all_pixel_link_modes = {
+struct imx678_frame_mode {
+	unsigned int width;
+	unsigned int height;
+	uint8_t frame_count;
+	unsigned uint16_t flag;
+};
+
+static const struct imx678_frame_mode frame_mode_configs[] = {
+	[IMX678_HDR_MODE_ALL_PIXEL] = {
+		.width = IMX678_DEFAULT_WIDTH,
+		.height = IMX678_DEFAULT_HEIGHT,
+		.frame_count = 1,
+		.flag = LINK_MODE_ALL_PIXEL,
+	},
+	[IMX678_HDR_MODE_BINNING] = {
+		.width = IMX678_DEFAULT_WIDTH / 2,
+		.height = IMX678_DEFAULT_HEIGHT / 2,
+		.frame_count = 1,
+		.flag = LINK_MODE_ALL_BINNING,
+	},
+	[IMX678_HDR_MODE_DOL_HDR] = {
+		.width = IMX678_DEFAULT_WIDTH,
+		.height = IMX678_DEFAULT_HEIGHT,
+		.frame_count = 2,
+		.flag = LINK_MODE_DOL_HDR,
+	},
+	[IMX678_HDR_MODE_DOL_HDR_BINNING] = {
+		.width = IMX678_DEFAULT_WIDTH / 2,
+		.height = IMX678_DEFAULT_HEIGHT / 2,
+		.frame_count = 2,
+		.flag = LINK_MODE_DOL_BINNING,
+	},
+	[IMX678_HDR_MODE_CLEAR_HDR] = {
+		.width = IMX678_DEFAULT_WIDTH,
+		.height = IMX678_DEFAULT_HEIGHT,
+		.frame_count = 2,
+		.flag = LINK_MODE_CLEAR_HDR,
+	},
+	[IMX678_HDR_MODE_CLEAR_HDR_BINNING] = {
+		.width = IMX678_DEFAULT_WIDTH / 2,
+		.height = IMX678_DEFAULT_HEIGHT / 2,
+		.frame_count = 2,
+		.flag = LINK_MODE_CLEAR_BINNING,
+	},
+};
+
+static const struct imx678_link_mode all_pixel_link_modes[] = {
 	// 25 fps, hmax 1320
 	{
 		.link_freq = IMX678_720_MBPS, 	.bit_depth = 10, .hmax = 1320,
@@ -212,57 +242,6 @@ static const struct imx678_link_mode all_pixel_link_modes = {
 	}
 };
 
-static const struct imx678_mode modes_frame[] = {
-	[IMX678_CAMERA_MODE_ALL_PIXEL] = {
-		.width = IMX678_DEFAULT_WIDTH,
-		.height = IMX678_DEFAULT_HEIGHT,
-		.crop = {
-			.left = 0,
-			.top = 0,
-			.width = IMX678_DEFAULT_WIDTH,
-			.height = IMX678_DEFAULT_HEIGHT,
-		},
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_3856x2180),
-			.regs = mode_3856x2180,
-		},
-		.hdr_mode = IMX678_HDR_MODE_LINEAR,
-		.is_binning = false,
-	},
-	[IMX678_CAMERA_MODE_DOL_HDR] = {
-		.width = IMX678_DEFAULT_WIDTH,
-		.height = IMX678_DEFAULT_HEIGHT,
-		.crop = {
-			.left = 0,
-			.top = 0,
-			.width = IMX678_DEFAULT_WIDTH,
-			.height = IMX678_DEFAULT_HEIGHT,
-		},
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(imx678_setting_dol_hdr),
-			.regs = imx678_setting_dol_hdr,
-		},
-		.hdr_mode = IMX678_HDR_MODE_DOL,
-		.is_binning = false,
-	},
-	[IMX678_CAMERA_MODE_CLEAR_HDR] = {
-		.width = IMX678_DEFAULT_WIDTH,
-		.height = IMX678_DEFAULT_HEIGHT,
-		.crop = {
-			.left = 0,
-			.top = 0,
-			.width = IMX678_DEFAULT_WIDTH,
-			.height = IMX678_DEFAULT_HEIGHT,
-		},
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(imx678_setting_clear_hdr),
-			.regs = imx678_setting_clear_hdr,
-		},
-		.hdr_mode = IMX678_HDR_MODE_CLEAR,
-		.is_binning = false,
-	}
-};
-
 static const u32 bayer_formats[] = {
 	MEDIA_BUS_FMT_SRGGB12_1X12, // no flip
 	MEDIA_BUS_FMT_SGRBG12_1X12, // H flip
@@ -310,7 +289,7 @@ struct imx678 {
 
 	const char *gmsl;
 
-	const struct imx678_mode *mode;
+	const struct imx678_frame_mode *frame_mode;
 	struct mutex mutex;
 	bool streaming;
 };
@@ -478,8 +457,8 @@ static int imx678_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 
 	mutex_lock(&imx678->mutex);
 
-	fmt_img->width = modes_frame[0].width;
-	fmt_img->height = modes_frame[0].height;
+	fmt_img->width = frame_mode_configs[0].width;
+	fmt_img->height = frame_mode_configs[0].height;
 	fmt_img->code = MEDIA_BUS_FMT_SRGGB12_1X12;
 	fmt_img->field = V4L2_FIELD_NONE;
 
@@ -498,7 +477,7 @@ static int imx678_set_exposure(struct imx678 *imx678, u64 val)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
 	struct device *dev = &client->dev;
-	const struct imx678_mode *mode = imx678->mode;
+	const struct imx678_frame_mode *mode = imx678->mode;
 	u64 exposure;
 	int ret;
 
@@ -515,7 +494,7 @@ static int imx678_set_exposure(struct imx678 *imx678, u64 val)
 
 static void imx678_adjust_exposure_range(struct imx678 *imx678)
 {
-	const struct imx678_mode *mode = imx678->mode;
+	const struct imx678_frame_mode *mode = imx678->mode;
 	u64 exposure_max;
 
 	exposure_max = imx678->vblank->val + mode->height - IMX678_MIN_SHR0_LENGTH;
@@ -543,7 +522,7 @@ static int imx678_set_frame_rate(struct imx678 *imx678, u64 val)
 
 static void imx678_update_frame_rate(struct imx678 *imx678, u64 val)
 {
-	const struct imx678_mode *mode = imx678->mode;
+	const struct imx678_frame_mode *mode = imx678->mode;
 	u32 update_vblank;
 
 	imx678->frame_length = (IMX678_M_FACTOR * IMX678_G_FACTOR) /
@@ -563,7 +542,7 @@ static int imx678_set_hmax_register(struct imx678 *imx678)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
 	struct device *dev = &client->dev;
-	const struct imx678_mode *mode = imx678->mode;
+	const struct imx678_frame_mode *mode = imx678->mode;
 	int ret;
 
 	ret = imx678_write_hold_reg(imx678, HMAX_LOW, 2, mode->hmax);
@@ -732,8 +711,8 @@ static int imx678_set_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_VBLANK:
 		imx678_adjust_exposure_range(imx678);
 		break;
-	case V4L2_CID_CAMERA_MODE:
-		imx678->mode = modes_frame[ctrl->val];
+	case V4L2_CID_FRAME_MODE:
+		imx678->mode = frame_mode_configs[ctrl->val];
 		break;
 	}
 
@@ -817,7 +796,7 @@ static int imx678_enum_frame_size(struct v4l2_subdev *sd,
 		return -EINVAL;
 
 	if (fse->pad == IMAGE_PAD) {
-		const struct imx678_mode *mode_list;
+		const struct imx678_frame_mode *mode_list;
 		unsigned int num_modes;
 
 		get_mode_table(fse->code, &mode_list, &num_modes);
@@ -848,7 +827,7 @@ static void imx678_reset_colorspace(struct v4l2_mbus_framefmt *fmt)
 }
 
 static void imx678_update_image_pad_format(struct imx678 *imx678,
-						const struct imx678_mode *mode,
+						const struct imx678_frame_mode *mode,
 						struct v4l2_subdev_format *fmt)
 {
 	fmt->format.width = mode->width;
@@ -861,7 +840,7 @@ static void imx678_set_limits(struct imx678 *imx678)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
 	struct device *dev = &client->dev;
-	const struct imx678_mode *mode = imx678->mode;
+	const struct imx678_frame_mode *mode = imx678->mode;
 	u64 vblank, max_framerate;
 
 	dev_dbg(dev, "%s: mode: %dx%d\n", __func__, mode->width, mode->height);
@@ -884,11 +863,7 @@ static void imx678_set_limits(struct imx678 *imx678)
 	imx678->line_time = (mode->hmax*IMX678_G_FACTOR) / (IMX678_XCLK_FREQ);
 	dev_dbg(dev, "%s: line time: %lld\n", __func__, imx678->line_time);
 
-	if (mode->is_binning)
-		imx678->frame_length = mode->height * 2 + vblank;
-	else
-		imx678->frame_length = mode->height + vblank;
-
+	imx678->frame_length = mode->height * mode->frame_count + vblank;
 	dev_dbg(dev, "%s: frame length: %d\n", __func__, imx678->frame_length);
 
 	max_framerate = (IMX678_G_FACTOR * IMX678_M_FACTOR) /
@@ -909,7 +884,7 @@ static int imx678_set_pad_format(struct v4l2_subdev *sd,
 {
 	struct v4l2_mbus_framefmt *framefmt;
 	struct imx678 *imx678 = to_imx678(sd);
-	const struct imx678_mode *mode = imx678->mode;
+	const struct imx678_frame_mode *mode = imx678->mode;
 
 	if (fmt->pad >= NUM_PADS)
 		return -EINVAL;
@@ -1310,10 +1285,10 @@ static int imx678_init_controls(struct imx678 *imx678)
 	mutex_init(&imx678->mutex);
 	ctrl_hdlr->lock = &imx678->mutex;
 
-	v4l2_ctrl_new_std_menu(ctrl_hdlr, &imx678_ctrl_ops,
-					V4L2_CID_CAMERA_MODE,
-					ARRAY_SIZE(modes_frame),
-					0, 0, imx678_camera_mode_menu);
+	v4l2_ctrl_new_std_menu_items(ctrl_hdlr, &imx678_ctrl_ops,
+					V4L2_CID_FRAME_MODE,
+					ARRAY_SIZE(imx678_frame_mode_menu) - 1,
+					0, 0, imx678_hdr_mode_menu);
 
 	imx678->pixel_rate = v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops,
 						V4L2_CID_PIXEL_RATE, 0, 0, 1, 0);
@@ -1536,7 +1511,7 @@ static int imx678_probe(struct i2c_client *client)
 		return PTR_ERR(imx678->xmaster);
 	}
 
-	imx678->mode = &modes_frame[0];
+	imx678->mode = &frame_mode_configs[0];
 	imx678->fmt_code = MEDIA_BUS_FMT_SRGGB12_1X12;
 
 	pm_runtime_set_active(dev);
