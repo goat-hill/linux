@@ -10,11 +10,11 @@
 #define XMSTA			0x3002
 
 #define INCK_SEL		0x3014
-#define DATARATE_SEL		0x3015
+#define DATARATE_SEL	0x3015
 #define WINMODE			0x3018
 #define WDMODE			0x301A
 #define ADDMODE			0x301B
-#define THIN_V_EN       0x301C
+#define THIN_V_EN		0x301C
 
 #define VCMODE			0x301E
 
@@ -28,66 +28,66 @@
 #define VMAX_HIGH		0x302A
 #define HMAX_LOW		0x302C
 #define HMAX_HIGH		0x302D
-#define FDG_SEL0        0x3030
+#define FDG_SEL0		0x3030
 
 #define PIX_HST_LOW		0x303C
-#define PIX_HST_HIGH		0x303D
-#define PIX_HWIDTH_LOW		0x303E
-#define PIX_HWIDTH_HIGH		0x303F
+#define PIX_HST_HIGH	0x303D
+#define PIX_HWIDTH_LOW	0x303E
+#define PIX_HWIDTH_HIGH	0x303F
 
 #define LANEMODE		0x3040
 
 #define PIX_VST_LOW		0x3044
-#define PIX_VST_HIGH		0x3045
-#define PIX_VWIDTH_LOW		0x3046
-#define PIX_VWIDTH_HIGH		0x3047
+#define PIX_VST_HIGH	0x3045
+#define PIX_VWIDTH_LOW	0x3046
+#define PIX_VWIDTH_HIGH	0x3047
 
 // Long exposure
-#define SHR0_LOW            0x3050
-#define SHR0_MID            0x3051
-#define SHR0_HIGH           0x3052
+#define SHR0_LOW		0x3050
+#define SHR0_MID		0x3051
+#define SHR0_HIGH		0x3052
 
 // Short exposure
-#define SHR1_LOW            0x3054
-#define SHR1_MID            0x3055
-#define SHR1_HIGH           0x3056
+#define SHR1_LOW		0x3054
+#define SHR1_MID		0x3055
+#define SHR1_HIGH		0x3056
 
 // Very short exposure
-#define SHR2_LOW            0x3058
-#define SHR2_MID            0x3059
-#define SHR2_HIGH           0x305A
+#define SHR2_LOW		0x3058
+#define SHR2_MID		0x3059
+#define SHR2_HIGH		0x305A
 
 // Long exposure
-#define GAIN_0_LOW          0x3070
-#define GAIN_0_HIGH         0x3071
+#define GAIN_0_LOW		0x3070
+#define GAIN_0_HIGH		0x3071
 
 // Short exposure
-#define GAIN_1_LOW          0x3072
-#define GAIN_1_HIGH         0x3073
+#define GAIN_1_LOW		0x3072
+#define GAIN_1_HIGH		0x3073
 
 // Very short exposure
-#define GAIN_2_LOW          0x3074
-#define GAIN_2_HIGH         0x3075
+#define GAIN_2_LOW		0x3074
+#define GAIN_2_HIGH		0x3075
 
-#define RHS1_LOW            0x3060
-#define RHS1_MID            0x3061
-#define RHS1_HIGH           0x3062
-#define RHS2_LOW            0x3064
-#define RHS2_MID            0x3065
-#define RHS2_HIGH           0x3066
+#define RHS1_LOW		0x3060
+#define RHS1_MID		0x3061
+#define RHS1_HIGH		0x3062
+#define RHS2_LOW		0x3064
+#define RHS2_MID		0x3065
+#define RHS2_HIGH		0x3066
 
-#define EXP_GAIN            0x3081
+#define EXP_GAIN		0x3081
 
 #define XVS_XHS_DRV		0x30A6
 
 #define BLKLEVEL_LOW		0x30DC
 #define BLKLEVEL_HIGH		0x30DD
-#define GAIN_PGC_FIDMD      0x3400
+#define GAIN_PGC_FIDMD		0x3400
 
 #define TPG_EN_DUOUT		0x30E0
 #define TPG_PATSEL_DUOUT	0x30E2
 #define TPG_COLORWIDTH		0x30E4
-#define TESTCLKEN		0x5300
+#define TESTCLKEN			0x5300
 
 #define EXTMODE			0x30CE
 
@@ -500,23 +500,22 @@ static const struct imx678_reg mode_h2v2_binning[] = {
 };
 
 static struct imx678_reg imx678_setting_dol_hdr[] = {
-	{WINMODE,            0x00},
-	{WDMODE,             0x01},
-	{ADDMODE,            0x00},
-	{THIN_V_EN,          0x01},
+	{WINMODE,		0x00},
+	{WDMODE,		0x01},
+	{ADDMODE,		0x00},
+	{THIN_V_EN,		0x01},
 
-	{GAIN_PGC_FIDMD,     0x00},
+	{GAIN_PGC_FIDMD,	0x00},
 
-	{SHR0_LOW,          0x40},
-	{SHR0_MID,          0x0b},
-	{SHR1_LOW,          0x05},
+	{SHR0_LOW,		0x40},
+	{SHR0_MID,		0x0b},
+	{SHR1_LOW,		0x05},
 
-	{RHS1_LOW,           0x49},
-	{RHS1_MID,           0x00},
+	{RHS1_LOW,		0x49},
+	{RHS1_MID,		0x00},
 
-	{0x355A,             0x64},
+	{0x355A,		 0x64},
 };
-
 
 static struct imx678_reg imx678_setting_clear_hdr[] = {
 	{WINMODE,		0x00},
