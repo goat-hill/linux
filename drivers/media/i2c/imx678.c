@@ -5,8 +5,6 @@
  * imx678.c - Framos imx678.c driver
  */
 
-//#define DEBUG 1
-
 #include <linux/unaligned.h>
 #include <linux/delay.h>
 #include <linux/gpio/consumer.h>
@@ -25,25 +23,33 @@
 #define IMX678_K_FACTOR				1000LL
 #define IMX678_M_FACTOR				1000000LL
 #define IMX678_G_FACTOR				1000000000LL
-#define IMX678_T_FACTOR				1000000000000LL
 
 #define IMX678_XCLK_FREQ			74250000
 
-#define GMSL_LINK_FREQ_1500			(1500000000/2)
-#define IMX678_LINK_FREQ_1440			(1440000000/2)
-#define IMX678_LINK_FREQ_1188			(1188000000/2)
-#define IMX678_LINK_FREQ_891			(891000000/2)
+#define IMX678_LINK_FREQ_2376		(2376000000/2)
+#define IMX678_LINK_FREQ_2079		(2079000000/2)
+#define IMX678_LINK_FREQ_1782		(1782000000/2)
+#define IMX678_LINK_FREQ_1440		(1440000000/2)
+#define IMX678_LINK_FREQ_1188		(1188000000/2)
+#define IMX678_LINK_FREQ_891		(891000000/2)
+#define IMX678_LINK_FREQ_720		(720000000/2)
+#define IMX678_LINK_FREQ_594		(594000000/2)
 
-#define IMX678_MODE_STANDBY			0x01
+#define IMX678_MODE_STANDBY				0x01
 #define IMX678_MODE_STREAMING			0x00
 
-#define IMX678_MIN_SHR0_LENGTH			3
+#define IMX678_MIN_SHR0_LENGTH				4
 #define IMX678_MIN_INTEGRATION_LINES		1
 
-#define IMX678_ANA_GAIN_MIN			0
-#define IMX678_ANA_GAIN_MAX			240
+#define IMX678_ANA_GAIN_MIN				0
+#define IMX678_ANA_GAIN_MAX				240
 #define IMX678_ANA_GAIN_STEP			1
 #define IMX678_ANA_GAIN_DEFAULT			0
+
+#define IMX678_EXP_GAIN_MIN 		0
+#define IMX678_EXP_GAIN_MAX 		5
+#define IMX678_EXP_GAIN_STEP 		1
+#define IMX678_EXP_GAIN_DEFAULT 	2
 
 #define IMX678_BLACK_LEVEL_MIN			0
 #define IMX678_BLACK_LEVEL_STEP			1
@@ -52,222 +58,213 @@
 #define IMX678_DEFAULT_BLACK_LEVEL_10BPP	50
 #define IMX678_DEFAULT_BLACK_LEVEL_12BPP	200
 
-#define IMX678_EMBEDDED_LINE_WIDTH		16384
-#define IMX678_NUM_EMBEDDED_LINES		1
-
 enum pad_types {
 	IMAGE_PAD,
 	NUM_PADS
 };
 
-#define IMX678_NATIVE_WIDTH		3856U
+enum imx678_frame_mode {
+	IMX678_HDR_MODE_ALL_PIXEL,
+	IMX678_HDR_MODE_BINNING,
+	IMX678_HDR_MODE_DOL_HDR,
+	IMX678_HDR_MODE_DOL_HDR_BINNING,
+	IMX678_HDR_MODE_CLEAR_HDR,
+	IMX678_HDR_MODE_CLEAR_HDR_BINNING,
+};
+
+static const char * const imx678_frame_mode_menu[] = {
+	[IMX678_HDR_MODE_ALL_PIXEL] = "All pixel (HDR off)",
+	[IMX678_HDR_MODE_BINNING] = "H2V2 binning (HDR off)",
+	[IMX678_HDR_MODE_DOL_HDR] = "DOL HDR",
+	[IMX678_HDR_MODE_DOL_HDR_BINNING] = "DOL HDR + H2V2 binning",
+	[IMX678_HDR_MODE_CLEAR_HDR] = "Clear HDR",
+	[IMX678_HDR_MODE_CLEAR_HDR_BINNING] = "Clear HDR + H2V2 binning",
+};
+
+#define IMX678_NATIVE_WIDTH			3856U
 #define IMX678_NATIVE_HEIGHT		2180U
 #define IMX678_PIXEL_ARRAY_LEFT		0U
-#define IMX678_PIXEL_ARRAY_TOP		0U
+#define IMX678_PIXEL_ARRAY_TOP		4U
 #define IMX678_PIXEL_ARRAY_WIDTH	3856U
-#define IMX678_PIXEL_ARRAY_HEIGHT	2180U
+#define IMX678_PIXEL_ARRAY_HEIGHT	2176U
 
-#define V4L2_CID_FRAME_RATE		(V4L2_CID_USER_IMX_BASE + 1)
-#define V4L2_CID_OPERATION_MODE		(V4L2_CID_USER_IMX_BASE + 2)
-#define V4L2_CID_SYNC_MODE		(V4L2_CID_USER_IMX_BASE + 3)
+#define V4L2_CID_FRAME_MODE 			(V4L2_CID_USER_IMX_BASE + 0)
+#define V4L2_CID_OPERATION_MODE			(V4L2_CID_USER_IMX_BASE + 1)
+#define V4L2_CID_SYNC_MODE				(V4L2_CID_USER_IMX_BASE + 2)
+#define V4L2_CID_EXPOSURE_SHORT			(V4L2_CID_USER_IMX_BASE + 3)
+#define V4L2_CID_ANALOGUE_GAIN_SHORT	(V4L2_CID_USER_IMX_BASE + 4)
+#define V4L2_CID_EXPONENTIAL_GAIN		(V4L2_CID_USER_IMX_BASE + 5)
 
 struct imx678_reg_list {
 	unsigned int num_of_regs;
 	const struct imx678_reg *regs;
 };
 
-struct imx678_mode {
+enum {
+	IMX678_BIT_DEPTH_10,
+	IMX678_BIT_DEPTH_12,
+} bit_depth;
 
+static const s64 imx678_link_freq_map[] = {
+	[IMX678_2376_MBPS] = IMX678_LINK_FREQ_2376,
+	[IMX678_2079_MBPS] = IMX678_LINK_FREQ_2079,
+	[IMX678_1782_MBPS] = IMX678_LINK_FREQ_1782,
+	[IMX678_1440_MBPS] = IMX678_LINK_FREQ_1440,
+	[IMX678_1188_MBPS] = IMX678_LINK_FREQ_1188,
+	[IMX678_891_MBPS] = IMX678_LINK_FREQ_891,
+	[IMX678_720_MBPS] = IMX678_LINK_FREQ_720,
+};
+
+struct imx678_link_mode {
+	unsigned int freq_idx;
+	unsigned int bit_depth;
+	unsigned int hmax;
+	unsigned int modes;
+	unsigned int lane_count;
+};
+
+#define LINK_MODE_ALL_PIXEL 	(1 << 0)
+#define LINK_MODE_ALL_BINNING	(1 << 1)
+#define LINK_MODE_DOL_HDR		(1 << 2)
+#define LINK_MODE_DOL_BINNING	(1 << 3)
+#define LINK_MODE_CLEAR_HDR		(1 << 4)
+#define LINK_MODE_CLEAR_BINNING	(1 << 5)
+
+struct imx678_frame_mode_config {
 	unsigned int width;
 	unsigned int height;
-	unsigned int linkfreq;
-	unsigned int pixel_rate;
-	unsigned int min_fps;
-	unsigned int hmax;
-	struct v4l2_rect crop;
-	struct imx678_reg_list reg_list;
-	struct imx678_reg_list reg_list_format;
+	unsigned int frame_count;
+	unsigned int flag;
 };
 
-static const s64 imx678_link_freq_menu[] = {
-	[_IMX678_LINK_FREQ_1440] = IMX678_LINK_FREQ_1440,
-	[_IMX678_LINK_FREQ_1188] = IMX678_LINK_FREQ_1188,
-	[_IMX678_LINK_FREQ_891] = IMX678_LINK_FREQ_891,
-};
-
-static const struct imx678_mode modes_12bit[] = {
-	{
-		/* All pixel mode */
+static const struct imx678_frame_mode_config frame_mode_configs[] = {
+	[IMX678_HDR_MODE_ALL_PIXEL] = {
 		.width = IMX678_DEFAULT_WIDTH,
 		.height = IMX678_DEFAULT_HEIGHT,
-		.hmax = 0x44C,
-		.linkfreq = _IMX678_LINK_FREQ_1188,
-		.pixel_rate = 260280000,
-		.min_fps = 1000000,
-		.crop = {
-			.left = 0,
-			.top = 0,
-			.width = IMX678_DEFAULT_WIDTH,
-			.height = IMX678_DEFAULT_HEIGHT,
-		},
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_3856x2180),
-			.regs = mode_3856x2180,
-		},
-		.reg_list_format = {
-			.num_of_regs = ARRAY_SIZE(raw12_framefmt_regs),
-			.regs = raw12_framefmt_regs,
-		},
+		.frame_count = 1,
+		.flag = LINK_MODE_ALL_PIXEL,
 	},
-	{
-		/* Crop mode */
-		.width = IMX678_CROP_2608x1964_WIDTH,
-		.height = IMX678_CROP_2608x1964_HEIGHT,
-		.hmax = 0x294,
-		.linkfreq = _IMX678_LINK_FREQ_1440,
-		.pixel_rate = 293400000,
-		.min_fps = 1000000,
-		.crop = {
-			.left = 628,
-			.top = 108,
-			.width = IMX678_CROP_2608x1964_WIDTH,
-			.height = IMX678_CROP_2608x1964_HEIGHT,
-		},
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_crop_2608x1964),
-			.regs = mode_crop_2608x1964,
-		},
-		.reg_list_format = {
-			.num_of_regs = ARRAY_SIZE(raw12_framefmt_regs),
-			.regs = raw12_framefmt_regs,
-		},
+	[IMX678_HDR_MODE_BINNING] = {
+		.width = IMX678_DEFAULT_WIDTH / 2,
+		.height = IMX678_DEFAULT_HEIGHT / 2,
+		.frame_count = 1,
+		.flag = LINK_MODE_ALL_BINNING,
 	},
-	{
-		/* Crop mode */
-		.width = IMX678_CROP_1920x1080_WIDTH,
-		.height = IMX678_CROP_1920x1080_HEIGHT,
-		.hmax = 0x294,
-		.linkfreq = _IMX678_LINK_FREQ_1440,
-		.pixel_rate = 216000000,
-		.min_fps = 1000000,
-		.crop = {
-			.left = 972,
-			.top = 548,
-			.width = IMX678_CROP_1920x1080_WIDTH,
-			.height = IMX678_CROP_1920x1080_HEIGHT,
-		},
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_crop_1920x1080),
-			.regs = mode_crop_1920x1080,
-		},
-		.reg_list_format = {
-			.num_of_regs = ARRAY_SIZE(raw12_framefmt_regs),
-			.regs = raw12_framefmt_regs,
-		},
-	},
-	{
-		/* h2v2 mode */
-		.width = IMX678_MODE_BINNING_H2V2_WIDTH,
-		.height = IMX678_MODE_BINNING_H2V2_HEIGHT,
-		.hmax = 0x226,
-		.linkfreq = _IMX678_LINK_FREQ_1440,
-		.pixel_rate = 260280000,
-		.min_fps = 1000000,
-		.crop = {
-			.left = 0,
-			.top = 0,
-			.width = 2 * IMX678_MODE_BINNING_H2V2_WIDTH,
-			.height = 2 * IMX678_MODE_BINNING_H2V2_HEIGHT,
-		},
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_h2v2_binning),
-			.regs = mode_h2v2_binning,
-		},
-		.reg_list_format = {
-			.num_of_regs = ARRAY_SIZE(raw12_h2v2_framefmt_regs),
-			.regs = raw12_h2v2_framefmt_regs,
-		},
-	},
-};
-
-static const struct imx678_mode modes_10bit[] = {
-	{
-		/* All pixel mode */
+	[IMX678_HDR_MODE_DOL_HDR] = {
 		.width = IMX678_DEFAULT_WIDTH,
 		.height = IMX678_DEFAULT_HEIGHT,
-		.hmax = 0x44C,
-		.linkfreq = _IMX678_LINK_FREQ_891,
-		.pixel_rate = 260280000,
-		.min_fps = 1000000,
-		.crop = {
-			.left = 0,
-			.top = 0,
-			.width = IMX678_DEFAULT_WIDTH,
-			.height = IMX678_DEFAULT_HEIGHT,
-		},
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_3856x2180),
-			.regs = mode_3856x2180,
-		},
-		.reg_list_format = {
-			.num_of_regs = ARRAY_SIZE(raw10_framefmt_regs),
-			.regs = raw10_framefmt_regs,
-		},
+		.frame_count = 2,
+		.flag = LINK_MODE_DOL_HDR,
 	},
-	{
-		/* Crop mode */
-		.width = IMX678_CROP_2608x1964_WIDTH,
-		.height = IMX678_CROP_2608x1964_HEIGHT,
-		.hmax = 0x294,
-		.linkfreq = _IMX678_LINK_FREQ_1440,
-		.pixel_rate = 293400000,
-		.min_fps = 1000000,
-		.crop = {
-			.left = 628,
-			.top = 108,
-			.width = IMX678_CROP_2608x1964_WIDTH,
-			.height = IMX678_CROP_2608x1964_HEIGHT,
-		},
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_crop_2608x1964),
-			.regs = mode_crop_2608x1964,
-		},
-		.reg_list_format = {
-			.num_of_regs = ARRAY_SIZE(raw10_framefmt_regs),
-			.regs = raw10_framefmt_regs,
-		},
+	[IMX678_HDR_MODE_DOL_HDR_BINNING] = {
+		.width = IMX678_DEFAULT_WIDTH / 2,
+		.height = IMX678_DEFAULT_HEIGHT / 2,
+		.frame_count = 2,
+		.flag = LINK_MODE_DOL_BINNING,
 	},
-	{
-		/* Crop mode */
-		.width = IMX678_CROP_1920x1080_WIDTH,
-		.height = IMX678_CROP_1920x1080_HEIGHT,
-		.hmax = 0x226,
-		.linkfreq = _IMX678_LINK_FREQ_1440,
-		.pixel_rate = 259200000,
-		.min_fps = 1000000,
-		.crop = {
-			.left = 972,
-			.top = 548,
-			.width = IMX678_CROP_1920x1080_WIDTH,
-			.height = IMX678_CROP_1920x1080_HEIGHT,
-		},
-		.reg_list = {
-			.num_of_regs = ARRAY_SIZE(mode_crop_1920x1080),
-			.regs = mode_crop_1920x1080,
-		},
-		.reg_list_format = {
-			.num_of_regs = ARRAY_SIZE(raw10_framefmt_regs),
-			.regs = raw10_framefmt_regs,
-		},
+	[IMX678_HDR_MODE_CLEAR_HDR] = {
+		.width = IMX678_DEFAULT_WIDTH,
+		.height = IMX678_DEFAULT_HEIGHT,
+		.frame_count = 2,
+		.flag = LINK_MODE_CLEAR_HDR,
+	},
+	[IMX678_HDR_MODE_CLEAR_HDR_BINNING] = {
+		.width = IMX678_DEFAULT_WIDTH / 2,
+		.height = IMX678_DEFAULT_HEIGHT / 2,
+		.frame_count = 2,
+		.flag = LINK_MODE_CLEAR_BINNING,
 	},
 };
 
-static const u32 codes[] = {
+static const struct imx678_link_mode link_modes[] = {
+	// 25 fps, hmax 1320
+	{
+		.freq_idx = IMX678_720_MBPS, 	.bit_depth = 10, .hmax = 1320,
+		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR | LINK_MODE_DOL_HDR,
+		.lane_count = 4,
+	},
+	{
+		.freq_idx = IMX678_720_MBPS, 	.bit_depth = 12, .hmax = 1320,
+		.modes = LINK_MODE_ALL_BINNING | LINK_MODE_DOL_BINNING | LINK_MODE_CLEAR_BINNING,
+		.lane_count = 4,
+	},
+	{
+		.freq_idx = IMX678_891_MBPS, 	.bit_depth = 12, .hmax = 1320,
+		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR | LINK_MODE_DOL_HDR,
+		.lane_count = 4,
+	},
 
-	MEDIA_BUS_FMT_SRGGB12_1X12,
+	// 30 fps, hmax 1100
+	{
+		.freq_idx = IMX678_720_MBPS, 	.bit_depth = 12, .hmax = 1100,
+		.modes = LINK_MODE_ALL_BINNING | LINK_MODE_DOL_BINNING | LINK_MODE_CLEAR_BINNING,
+		.lane_count = 4,
+	},
+	{
+		.freq_idx = IMX678_891_MBPS, 	.bit_depth = 10, .hmax = 1100,
+		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR | LINK_MODE_DOL_HDR,
+		.lane_count = 4,
+	},
+	{
+		.freq_idx = IMX678_1188_MBPS,	.bit_depth = 12, .hmax = 1100,
+		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR | LINK_MODE_DOL_HDR,
+		.lane_count = 4,
+	},
+
+	// 50 fps, hmax 660
+	{
+		.freq_idx = IMX678_1440_MBPS,	.bit_depth = 10, .hmax = 660,
+		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR | LINK_MODE_DOL_HDR,
+		.lane_count = 4,
+	},
+	{
+		.freq_idx = IMX678_1440_MBPS,	.bit_depth = 12, .hmax = 660,
+		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR |
+			LINK_MODE_ALL_BINNING | LINK_MODE_DOL_HDR | LINK_MODE_DOL_BINNING |
+			LINK_MODE_CLEAR_BINNING,
+		.lane_count = 4,
+	}, 
+
+	// 60 fps, hmax 550
+	{
+		.freq_idx = IMX678_1440_MBPS,	.bit_depth = 10, .hmax = 550,
+		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_CLEAR_HDR | LINK_MODE_DOL_HDR,
+		.lane_count = 4,
+	},
+	{
+		.freq_idx = IMX678_1440_MBPS,	.bit_depth = 12, .hmax = 550,
+		.modes = LINK_MODE_ALL_BINNING | LINK_MODE_DOL_BINNING,
+		.lane_count = 4,
+	},
+	{
+		.freq_idx = IMX678_1782_MBPS,	.bit_depth = 12, .hmax = 550,
+		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_DOL_HDR,
+		.lane_count = 4,
+	},
+
+	// 72 fps, hmax 458
+	{
+		.freq_idx = IMX678_2079_MBPS,	.bit_depth = 10, .hmax = 458,
+		.modes = LINK_MODE_ALL_PIXEL | LINK_MODE_DOL_HDR,
+		.lane_count = 4,
+	},
+	{
+		.freq_idx = IMX678_2376_MBPS,	.bit_depth = 12, .hmax = 458,
+		.modes = LINK_MODE_ALL_BINNING,
+		.lane_count = 4,
+	}
+};
+
+static const u32 bayer_formats[] = {
+	MEDIA_BUS_FMT_SRGGB12_1X12, // no flip
+	MEDIA_BUS_FMT_SGRBG12_1X12, // H flip
+	MEDIA_BUS_FMT_SGBRG12_1X12, // V flip
+	MEDIA_BUS_FMT_SBGGR12_1X12, // H+V flip
 
 	MEDIA_BUS_FMT_SRGGB10_1X10,
-
+	MEDIA_BUS_FMT_SGRBG10_1X10,
+	MEDIA_BUS_FMT_SGBRG10_1X10,
+	MEDIA_BUS_FMT_SBGGR10_1X10,
 };
 
 struct imx678 {
@@ -283,21 +280,27 @@ struct imx678 {
 	struct v4l2_ctrl *pixel_rate;
 	struct v4l2_ctrl *link_freq;
 	struct v4l2_ctrl *exposure;
-	struct v4l2_ctrl *framerate;
+	struct v4l2_ctrl *gain;
 	struct v4l2_ctrl *operation_mode;
 	struct v4l2_ctrl *sync_mode;
 	struct v4l2_ctrl *vflip;
 	struct v4l2_ctrl *hflip;
-	struct v4l2_ctrl *vblank;
-	struct v4l2_ctrl *hblank;
 	struct v4l2_ctrl *blklvl;
+
+	// DOL mode
+	struct v4l2_ctrl *exposure_short;
+	struct v4l2_ctrl *gain_short;
+
+	// Clear mode
+	struct v4l2_ctrl *exponential_gain;
 
 	u64 line_time;
 	u32 frame_length;
 
 	const char *gmsl;
 
-	const struct imx678_mode *mode;
+	const struct imx678_frame_mode_config *mode;
+	const struct imx678_link_mode *link_mode;
 	struct mutex mutex;
 	bool streaming;
 };
@@ -307,27 +310,7 @@ static inline struct imx678 *to_imx678(struct v4l2_subdev *_sd)
 	return container_of(_sd, struct imx678, sd);
 }
 
-static inline void get_mode_table(unsigned int code,
-				  const struct imx678_mode **mode_list,
-				  unsigned int *num_modes)
-{
-	switch (code) {
-	case MEDIA_BUS_FMT_SRGGB12_1X12:
-		*mode_list = modes_12bit;
-		*num_modes = ARRAY_SIZE(modes_12bit);
-		break;
-	case MEDIA_BUS_FMT_SRGGB10_1X10:
-		*mode_list = modes_10bit;
-		*num_modes = ARRAY_SIZE(modes_10bit);
-		break;
-	default:
-		*mode_list = NULL;
-		*num_modes = 0;
-	}
-}
-
 static const char * const imx678_test_pattern_menu[] = {
-
 	[0] = "Disabled",
 	[1] = "000h Pattern",
 	[2] = "3FF(FFFh) Pattern",
@@ -341,22 +324,17 @@ static const char * const imx678_test_pattern_menu[] = {
 	[10] = "FFF/000h Pattern",
 	[11] = "H Color-bar",
 	[12] = "V Color-bar"
-
 };
 
 static const char * const imx678_operation_mode_menu[] = {
-
 	[MASTER_MODE] = "Master Mode",
 	[SLAVE_MODE] = "Slave Mode",
-
 };
 
 static const char * const imx678_sync_mode_menu[] = {
-
 	[NO_SYNC] = "No Sync",
 	[INTERNAL_SYNC] = "Internal Sync",
 	[EXTERNAL_SYNC] = "External Sync",
-
 };
 
 static int imx678_read_reg(struct imx678 *imx678, u16 reg, u32 len, u32 *val)
@@ -466,63 +444,48 @@ static int imx678_write_table(struct imx678 *imx678,
 
 static u32 imx678_get_format_code(struct imx678 *imx678, u32 code)
 {
-	unsigned int i;
+	// Standard modes are 0 mod 4
+	// H flip - 1 mod 4
+	// V flip - 2 mod 4
+	// H+V flip - 3 mod 4
+	unsigned int i = (imx678->hflip->val) ? 1 : 0
+		+ (imx678->vflip->val) ? 2 : 0;
 
-	for (i = 0; i < ARRAY_SIZE(codes); i++)
-		if (codes[i] == code)
-			break;
+	for (; i < ARRAY_SIZE(bayer_formats); i += 4) {
+		if (bayer_formats[i] == code)
+			return bayer_formats[i];
+	}
 
-	if (i >= ARRAY_SIZE(codes))
-		i = 0;
-
-	return codes[i];
+	return bayer_formats[0];
 }
 
-static int imx678_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
+static int imx678_init_state(struct v4l2_subdev *sd,
+			  struct v4l2_subdev_state *state)
 {
-	struct imx678 *imx678 = to_imx678(sd);
-	struct v4l2_mbus_framefmt *fmt_img =
-		v4l2_subdev_state_get_format(fh->state, IMAGE_PAD);
-	struct v4l2_rect *crop;
-
-	mutex_lock(&imx678->mutex);
-
-	fmt_img->width = modes_12bit[0].width;
-	fmt_img->height = modes_12bit[0].height;
-	fmt_img->code = imx678_get_format_code(imx678,
-						MEDIA_BUS_FMT_SRGGB12_1X12);
-	fmt_img->field = V4L2_FIELD_NONE;
-
-	crop = v4l2_subdev_state_get_crop(fh->state, IMAGE_PAD);
-	crop->left = IMX678_PIXEL_ARRAY_LEFT;
-	crop->top = IMX678_PIXEL_ARRAY_TOP;
-	crop->width = IMX678_PIXEL_ARRAY_WIDTH;
-	crop->height = IMX678_PIXEL_ARRAY_HEIGHT;
-
-	mutex_unlock(&imx678->mutex);
-
-	return 0;
-}
-
-static bool imx678_is_binning_mode(struct imx678 *imx678)
-{
-	const struct imx678_mode *mode = imx678->mode;
-
-	if (mode == &modes_12bit[3])
-		return true;
-	else
-		return false;
+	int ret;
+	// FIXME: Is .which right here?
+	struct v4l2_subdev_format fmt = {
+		.which = state ? V4L2_SUBDEV_FORMAT_TRY : V4L2_SUBDEV_FORMAT_ACTIVE,
+		.pad = IMAGE_PAD,
+		.format = {
+			.code = MEDIA_BUS_FMT_SRGGB12_1X12,
+			.width = frame_mode_configs[0].width,
+			.height = frame_mode_configs[0].height,
+		},
+	};
+	ret = imx678_pad_set_fmt(sd, state, fmt);
+	return ret;
 }
 
 static int imx678_set_exposure(struct imx678 *imx678, u64 val)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
 	struct device *dev = &client->dev;
-	const struct imx678_mode *mode = imx678->mode;
+	const struct imx678_frame_mode_config *mode = imx678->mode;
 	u64 exposure;
 	int ret;
 
-	exposure = imx678->vblank->val + mode->height - val;
+	exposure = imx678->frame_length - val;
 
 	ret = imx678_write_hold_reg(imx678, SHR0_LOW, 3, exposure);
 	if (ret) {
@@ -535,22 +498,46 @@ static int imx678_set_exposure(struct imx678 *imx678, u64 val)
 
 static void imx678_adjust_exposure_range(struct imx678 *imx678)
 {
-	const struct imx678_mode *mode = imx678->mode;
+	const struct imx678_frame_mode_config *mode = imx678->mode;
 	u64 exposure_max;
 
-	exposure_max = imx678->vblank->val + mode->height - IMX678_MIN_SHR0_LENGTH;
+	exposure_max = imx678->frame_length - IMX678_MIN_SHR0_LENGTH;
 
 	__v4l2_ctrl_modify_range(imx678->exposure, IMX678_MIN_INTEGRATION_LINES,
 				exposure_max, 1,
 				exposure_max);
 }
 
-static int imx678_set_frame_rate(struct imx678 *imx678, u64 val)
+static int imx678_enum_frame_interval(struct v4l2_subdev *sd,
+				   struct v4l2_subdev_state *state,
+				   struct v4l2_subdev_frame_interval_enum *fie)
 {
-	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
+	if (fie->pad >= NUM_PADS)
+		return -EINVAL;
+
+	if (fie->pad == IMAGE_PAD) {
+		if (code->index >= ARRAY_SIZE(link_modes))
+			return -EINVAL;
+
+		code->code = bayer_formats[code->index];
+	}
+
+	return 0;
+}
+
+static int imx678_set_frame_interval(struct v4l2_subdev *sd,
+				  struct v4l2_subdev_state *state,
+				  struct v4l2_subdev_frame_interval *interval)
+{
+	struct imx678 *imx678 = to_imx678(sd);
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct device *dev = &client->dev;
 	int ret;
 
+	imx678->frame_length = (IMX678_M_FACTOR * IMX678_G_FACTOR) /
+						(val * imx678->line_time);
+	imx678->frame_length = (imx678->frame_length % 2) ?
+				imx678->frame_length + 1 : imx678->frame_length;
 	ret = imx678_write_hold_reg(imx678, VMAX_LOW, 3, imx678->frame_length);
 
 	if (ret) {
@@ -559,83 +546,22 @@ static int imx678_set_frame_rate(struct imx678 *imx678, u64 val)
 	}
 
 	return ret;
-
-}
-
-static void imx678_update_frame_rate(struct imx678 *imx678, u64 val)
-{
-
-	const struct imx678_mode *mode = imx678->mode;
-	u32 update_vblank;
-
-	imx678->frame_length = (IMX678_M_FACTOR * IMX678_G_FACTOR) /
-						(val * imx678->line_time);
-	imx678->frame_length = (imx678->frame_length % 2) ?
-				imx678->frame_length + 1 : imx678->frame_length;
-
-	update_vblank = imx678->frame_length - mode->height;
-
-	__v4l2_ctrl_modify_range(imx678->vblank, update_vblank,
-				 update_vblank, 1, update_vblank);
-
-	__v4l2_ctrl_s_ctrl(imx678->vblank, update_vblank);
-
 }
 
 static int imx678_set_hmax_register(struct imx678 *imx678)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
 	struct device *dev = &client->dev;
-	const struct imx678_mode *mode = imx678->mode;
 	int ret;
 
-	ret = imx678_write_hold_reg(imx678, HMAX_LOW, 2, mode->hmax);
+	ret = imx678_write_hold_reg(imx678, HMAX_LOW, 2, imx678->link_mode->hmax);
 	if (ret)
 		dev_err(dev, "%s failed to write HMAX register\n", __func__);
 
-	dev_dbg(dev, "%s: hmax: 0x%x\n", __func__, mode->hmax);
+	dev_dbg(dev, "%s: hmax: 0x%x\n", __func__, imx678->link_mode->hmax);
 
 	return ret;
 
-}
-
-static int imx678_set_data_rate(struct imx678 *imx678)
-{
-	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
-	struct device *dev = &client->dev;
-	int ret;
-
-	switch (imx678->mode->linkfreq) {
-	case _IMX678_LINK_FREQ_1440:
-		ret = imx678_write_reg(imx678, DATARATE_SEL, 1, 0x03);
-		if (ret) {
-			dev_err(dev, "%s failed to write datarate reg.\n",
-									__func__);
-			return ret;
-		}
-		break;
-	case _IMX678_LINK_FREQ_1188:
-		ret = imx678_write_reg(imx678, DATARATE_SEL, 1, 0x04);
-		if (ret) {
-			dev_err(dev, "%s failed to write datarate reg.\n",
-									__func__);
-			return ret;
-		}
-		break;
-	case _IMX678_LINK_FREQ_891:
-		ret = imx678_write_reg(imx678, DATARATE_SEL, 1, 0x05);
-		if (ret) {
-			dev_err(dev, "%s failed to write datarate reg.\n",
-									__func__);
-			return ret;
-		}
-		break;
-	default:
-		dev_err(dev, "%s datarate reg not set!\n", __func__);
-		return 1;
-	}
-
-	return ret;
 }
 
 static int imx678_set_test_pattern(struct imx678 *imx678, u32 val)
@@ -665,7 +591,6 @@ static int imx678_set_test_pattern(struct imx678 *imx678, u32 val)
 fail:
 	dev_err(dev, "%s: error setting test pattern\n", __func__);
 	return ret;
-
 }
 
 static void imx678_update_blklvl_range(struct imx678 *imx678)
@@ -711,6 +636,44 @@ static int imx678_set_blklvl(struct imx678 *imx678, u64 val)
 	dev_dbg(dev, "%s: blklvl value: %lld\n", __func__, black_level_reg);
 
 	return ret;
+}
+
+static void imx678_set_limits(struct imx678 *imx678)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
+	struct device *dev = &client->dev;
+	const struct imx678_frame_mode_config *mode = imx678->mode;
+	const struct imx678_link_mode *link = imx678->link_mode;
+	u64 vblank;
+
+	dev_dbg(dev, "%s: mode: %dx%d\n", __func__, mode->width, mode->height);
+
+	unsigned int pixel_rate = imx678_link_freq_map[link->freq_idx] *
+		2 * link->lane_count / link->bit_depth;
+	__v4l2_ctrl_modify_range(imx678->pixel_rate,
+				pixel_rate,
+				pixel_rate,
+				1,
+				pixel_rate);
+	dev_dbg(dev, "%s: pixel rate: %d\n", __func__, pixel_rate);
+
+	__v4l2_ctrl_s_ctrl(imx678->link_freq, link->freq_idx);
+
+	dev_dbg(dev, "%s: linkfreq: %lld\n", __func__, imx678_link_freq_map[link->freq_idx]);
+
+	imx678->line_time = (imx678->link_mode->hmax*IMX678_G_FACTOR) / (IMX678_XCLK_FREQ);
+	dev_dbg(dev, "%s: line time: %lld\n", __func__, imx678->line_time);
+
+	imx678->frame_length = mode->height * mode->frame_count + vblank;
+	dev_dbg(dev, "%s: frame length: %d\n", __func__, imx678->frame_length);
+
+	imx678_update_blklvl_range(imx678);
+}
+
+static void imx678_set_frame_mode(struct imx678 *imx678, u64 val)
+{
+	imx678->mode = frame_mode_configs[ctrl->val];
+	imx678_set_limits(imx678);
 }
 
 static int imx678_set_operation_mode(struct imx678 *imx678, u32 val)
@@ -789,11 +752,8 @@ static int imx678_set_ctrl(struct v4l2_ctrl *ctrl)
 	int ret = 0;
 
 	switch (ctrl->id) {
-	case V4L2_CID_FRAME_RATE:
-		imx678_update_frame_rate(imx678, ctrl->val);
-		break;
-	case V4L2_CID_VBLANK:
-		imx678_adjust_exposure_range(imx678);
+	case V4L2_CID_FRAME_MODE:
+		imx678_set_frame_mode(imx678, ctrl->val);
 		break;
 	}
 
@@ -802,13 +762,13 @@ static int imx678_set_ctrl(struct v4l2_ctrl *ctrl)
 
 	switch (ctrl->id) {
 	case V4L2_CID_ANALOGUE_GAIN:
-		ret = imx678_write_hold_reg(imx678, GAIN_LOW, 2, ctrl->val);
+		ret = imx678_write_hold_reg(imx678, GAIN_0_LOW, 2, ctrl->val);
 		break;
 	case V4L2_CID_EXPOSURE:
 		ret = imx678_set_exposure(imx678, ctrl->val);
 		break;
 	case V4L2_CID_TEST_PATTERN:
-		imx678_set_test_pattern(imx678, ctrl->val);
+		ret = imx678_set_test_pattern(imx678, ctrl->val);
 		break;
 	case V4L2_CID_HFLIP:
 		ret = imx678_write_reg(imx678, HREVERSE, 1, ctrl->val);
@@ -816,11 +776,17 @@ static int imx678_set_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_VFLIP:
 		ret = imx678_write_reg(imx678, VREVERSE, 1, ctrl->val);
 		break;
-	case V4L2_CID_FRAME_RATE:
-		ret = imx678_set_frame_rate(imx678, ctrl->val);
-		break;
 	case V4L2_CID_BLACK_LEVEL:
 		ret = imx678_set_blklvl(imx678, ctrl->val);
+		break;
+	case V4L2_CID_EXPOSURE_SHORT:
+		ret = imx678_set_exposure_short(imx678, ctrl->val);
+		break;
+	case V4L2_CID_ANALOGUE_GAIN_SHORT:
+		ret = imx678_write_hold_reg(imx678, GAIN_1_LOW, 2, ctrl->val);
+		break;
+	case V4L2_CID_EXPONENTIAL_GAIN:
+		ret = imx678_write_hold_reg(imx678, EXP_GAIN, 1, ctrl->val);
 		break;
 	case V4L2_CID_OPERATION_MODE:
 		ret = imx678_set_operation_mode(imx678, ctrl->val);
@@ -843,17 +809,14 @@ static int imx678_enum_mbus_code(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_state *sd_state,
 				 struct v4l2_subdev_mbus_code_enum *code)
 {
-	struct imx678 *imx678 = to_imx678(sd);
-
 	if (code->pad >= NUM_PADS)
 		return -EINVAL;
 
 	if (code->pad == IMAGE_PAD) {
-		if (code->index >= (ARRAY_SIZE(codes)))
+		if (code->index >= (ARRAY_SIZE(bayer_formats)))
 			return -EINVAL;
 
-		code->code = imx678_get_format_code(imx678,
-							codes[code->index]);
+		code->code = bayer_formats[code->index];
 	}
 
 	return 0;
@@ -869,21 +832,13 @@ static int imx678_enum_frame_size(struct v4l2_subdev *sd,
 		return -EINVAL;
 
 	if (fse->pad == IMAGE_PAD) {
-		const struct imx678_mode *mode_list;
-		unsigned int num_modes;
-
-		get_mode_table(fse->code, &mode_list, &num_modes);
-
-		if (fse->index >= num_modes)
-			return -EINVAL;
-
 		if (fse->code != imx678_get_format_code(imx678, fse->code))
 			return -EINVAL;
 
-		fse->min_width = mode_list[fse->index].width;
-		fse->max_width = fse->min_width;
-		fse->min_height = mode_list[fse->index].height;
-		fse->max_height = fse->min_height;
+		fse->min_width = imx678->mode->width;
+		fse->max_width = imx678->mode->width;
+		fse->min_height = imx678->mode->height;
+		fse->max_height = imx678->mode->height;
 	}
 
 	return 0;
@@ -900,7 +855,7 @@ static void imx678_reset_colorspace(struct v4l2_mbus_framefmt *fmt)
 }
 
 static void imx678_update_image_pad_format(struct imx678 *imx678,
-						const struct imx678_mode *mode,
+						const struct imx678_frame_mode_config *mode,
 						struct v4l2_subdev_format *fmt)
 {
 	fmt->format.width = mode->width;
@@ -909,123 +864,36 @@ static void imx678_update_image_pad_format(struct imx678 *imx678,
 	imx678_reset_colorspace(&fmt->format);
 }
 
-static int imx678_get_pad_format(struct v4l2_subdev *sd,
-				 struct v4l2_subdev_state *sd_state,
-				 struct v4l2_subdev_format *fmt)
-{
-	struct imx678 *imx678 = to_imx678(sd);
-
-	if (fmt->pad >= NUM_PADS)
-		return -EINVAL;
-
-	mutex_lock(&imx678->mutex);
-
-	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
-		struct v4l2_mbus_framefmt *try_fmt =
-			v4l2_subdev_state_get_format(sd_state,
-							fmt->pad);
-		try_fmt->code = imx678_get_format_code(imx678, try_fmt->code);
-		fmt->format = *try_fmt;
-	} else {
-		if (fmt->pad == IMAGE_PAD) {
-			imx678_update_image_pad_format(imx678, imx678->mode,
-								fmt);
-			fmt->format.code =
-					imx678_get_format_code(imx678,
-								imx678->fmt_code);
-		}
-	}
-
-	mutex_unlock(&imx678->mutex);
-	return 0;
-}
-
-static void imx678_set_limits(struct imx678 *imx678)
-{
-	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
-	struct device *dev = &client->dev;
-	const struct imx678_mode *mode = imx678->mode;
-	u64 vblank, max_framerate;
-
-	dev_dbg(dev, "%s: mode: %dx%d\n", __func__, mode->width, mode->height);
-
-	vblank = IMX678_MIN_FRAME_LENGTH_DELTA;
-
-	__v4l2_ctrl_modify_range(imx678->vblank, vblank,
-				 vblank, 1, vblank);
-	dev_dbg(dev, "%s: vblank: %lld\n", __func__, vblank);
-
-	__v4l2_ctrl_modify_range(imx678->pixel_rate, mode->pixel_rate,
-				 mode->pixel_rate, 1, mode->pixel_rate);
-	dev_dbg(dev, "%s: pixel rate: %d\n", __func__, mode->pixel_rate);
-
-	__v4l2_ctrl_s_ctrl(imx678->link_freq, mode->linkfreq);
-
-	dev_dbg(dev, "%s: linkfreq: %lld\n", __func__,
-					imx678_link_freq_menu[mode->linkfreq]);
-
-	imx678->line_time = (mode->hmax*IMX678_G_FACTOR) / (IMX678_XCLK_FREQ);
-	dev_dbg(dev, "%s: line time: %lld\n", __func__, imx678->line_time);
-
-	if (imx678_is_binning_mode(imx678))
-		imx678->frame_length = mode->height * 2 + vblank;
-	else
-		imx678->frame_length = mode->height + vblank;
-
-	dev_dbg(dev, "%s: frame length: %d\n", __func__, imx678->frame_length);
-
-	max_framerate = (IMX678_G_FACTOR * IMX678_M_FACTOR) /
-				(imx678->frame_length * imx678->line_time);
-
-	__v4l2_ctrl_modify_range(imx678->framerate, mode->min_fps,
-				 max_framerate, 1, max_framerate);
-	dev_dbg(dev, "%s: max framerate: %lld\n", __func__, max_framerate);
-
-	imx678_update_blklvl_range(imx678);
-
-	__v4l2_ctrl_s_ctrl(imx678->framerate, max_framerate);
-}
-
-static int imx678_set_pad_format(struct v4l2_subdev *sd,
+static int imx678_pad_set_fmt(struct v4l2_subdev *sd,
 				 struct v4l2_subdev_state *sd_state,
 				 struct v4l2_subdev_format *fmt)
 {
 	struct v4l2_mbus_framefmt *framefmt;
-	const struct imx678_mode *mode;
 	struct imx678 *imx678 = to_imx678(sd);
+	const struct imx678_frame_mode_config *mode = imx678->mode;
 
 	if (fmt->pad >= NUM_PADS)
 		return -EINVAL;
 
-	mutex_lock(&imx678->mutex);
+	v4l2_subdev_lock_state(sd_state);
+
+	// FIXME: Return error code if streaming?
 
 	if (fmt->pad == IMAGE_PAD) {
-		const struct imx678_mode *mode_list;
-		unsigned int num_modes;
-
 		fmt->format.code = imx678_get_format_code(imx678, fmt->format.code);
-
-		get_mode_table(fmt->format.code, &mode_list, &num_modes);
-
-		mode = v4l2_find_nearest_size(mode_list,
-						num_modes,
-						width, height,
-						fmt->format.width,
-						fmt->format.height);
 		imx678_update_image_pad_format(imx678, mode, fmt);
 
 		if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
 			framefmt = v4l2_subdev_state_get_format(sd_state,
 								fmt->pad);
 			*framefmt = fmt->format;
-		} else if (imx678->mode != mode) {
-			imx678->mode = mode;
+		} else if (imx678->fmt_code != fmt->format.code) {
 			imx678->fmt_code = fmt->format.code;
 			imx678_set_limits(imx678);
 		}
 	}
 
-	mutex_unlock(&imx678->mutex);
+	v4l2_subdev_unlock_state(sd_state);
 
 	return 0;
 }
@@ -1084,7 +952,6 @@ static int imx678_get_selection(struct v4l2_subdev *sd,
 
 static int imx678_set_mode(struct imx678 *imx678)
 {
-
 	struct i2c_client *client = v4l2_get_subdevdata(&imx678->sd);
 	struct device *dev = &client->dev;
 	const struct imx678_reg_list *reg_list;
@@ -1118,7 +985,7 @@ static int imx678_set_mode(struct imx678 *imx678)
 		return ret;
 	}
 
-	ret = imx678_set_data_rate(imx678);
+	ret = imx678_write_reg(imx678, DATARATE_SEL, 1, imx678->link_freq->val);
 	if (ret) {
 		dev_err(dev, "%s failed to set data rate\n", __func__);
 		return ret;
@@ -1245,7 +1112,7 @@ static int imx678_power_on(struct device *dev)
 	struct imx678 *imx678 = to_imx678(sd);
 
 	if (strcmp(imx678->gmsl, "gmsl")) {
-        gpiod_set_value_cansleep(imx678->reset_gpio, 1);
+		gpiod_set_value_cansleep(imx678->reset_gpio, 1);
 		usleep_range(25000, 30000);
 	}
 
@@ -1335,10 +1202,13 @@ static const struct v4l2_subdev_video_ops imx678_video_ops = {
 
 static const struct v4l2_subdev_pad_ops imx678_pad_ops = {
 	.enum_mbus_code = imx678_enum_mbus_code,
-	.get_fmt = imx678_get_pad_format,
-	.set_fmt = imx678_set_pad_format,
+	.get_fmt = v4l2_subdev_get_fmt,
+	.set_fmt = imx678_pad_set_fmt,
 	.get_selection = imx678_get_selection,
 	.enum_frame_size = imx678_enum_frame_size,
+	.enum_frame_interval = imx678_enum_frame_interval,
+	.get_frame_interval = v4l2_subdev_get_frame_interval,
+	.set_frame_interval = imx678_set_frame_interval,
 };
 
 static const struct v4l2_subdev_ops imx678_subdev_ops = {
@@ -1348,20 +1218,7 @@ static const struct v4l2_subdev_ops imx678_subdev_ops = {
 };
 
 static const struct v4l2_subdev_internal_ops imx678_internal_ops = {
-	.open = imx678_open,
-};
-
-static struct v4l2_ctrl_config imx678_ctrl_framerate[] = {
-	{
-		.ops = &imx678_ctrl_ops,
-		.id = V4L2_CID_FRAME_RATE,
-		.name = "Frame rate",
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 1,
-		.max = 0xFFFF,
-		.def = 0xFFFF,
-		.step = 1,
-	},
+	.init_state = imx678_init_state,
 };
 
 static struct v4l2_ctrl_config imx678_ctrl_operation_mode[] = {
@@ -1406,6 +1263,11 @@ static int imx678_init_controls(struct imx678 *imx678)
 	mutex_init(&imx678->mutex);
 	ctrl_hdlr->lock = &imx678->mutex;
 
+	v4l2_ctrl_new_std_menu_items(ctrl_hdlr, &imx678_ctrl_ops,
+					V4L2_CID_FRAME_MODE,
+					ARRAY_SIZE(imx678_frame_mode_menu) - 1,
+					0, 0, imx678_frame_mode_menu);
+
 	imx678->pixel_rate = v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops,
 						V4L2_CID_PIXEL_RATE, 0, 0, 1, 0);
 	if (imx678->pixel_rate)
@@ -1414,27 +1276,15 @@ static int imx678_init_controls(struct imx678 *imx678)
 	imx678->link_freq =
 		v4l2_ctrl_new_int_menu(ctrl_hdlr, &imx678_ctrl_ops,
 					V4L2_CID_LINK_FREQ,
-					ARRAY_SIZE(imx678_link_freq_menu) - 1, 0,
-					imx678_link_freq_menu);
+					ARRAY_SIZE(imx678_link_freq_map) - 1, 0,
+					imx678_link_freq_map);
 	if (imx678->link_freq)
 		imx678->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
-
-	imx678->vblank = v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops,
-					V4L2_CID_VBLANK, 0, 0, 1, 0);
-
-	imx678->hblank = v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops,
-					V4L2_CID_HBLANK, 0, 0, 1, 0);
-
-	if (imx678->hblank)
-		imx678->hblank->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
 	imx678->exposure = v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops,
 					V4L2_CID_EXPOSURE,
 					IMX678_MIN_INTEGRATION_LINES,
 					0xFF, 1, 0xFF);
-
-	imx678->framerate = v4l2_ctrl_new_custom(ctrl_hdlr,
-					imx678_ctrl_framerate, NULL);
 
 	imx678->operation_mode = v4l2_ctrl_new_custom(ctrl_hdlr,
 					imx678_ctrl_operation_mode, NULL);
@@ -1447,11 +1297,29 @@ static int imx678_init_controls(struct imx678 *imx678)
 					IMX678_BLACK_LEVEL_MIN, 0xFF,
 					IMX678_BLACK_LEVEL_STEP, 0xFF);
 
-	v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops, V4L2_CID_ANALOGUE_GAIN,
+	imx678->gain = v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops, V4L2_CID_ANALOGUE_GAIN,
 					IMX678_ANA_GAIN_MIN,
 					IMX678_ANA_GAIN_MAX,
 					IMX678_ANA_GAIN_STEP,
 					IMX678_ANA_GAIN_DEFAULT);
+
+	imx678->exposure_short = v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops,
+					V4L2_CID_EXPOSURE_SHORT,
+					IMX678_MIN_INTEGRATION_LINES,
+					0xFF, 1, IMX678_MIN_INTEGRATION_LINES);
+
+	imx678->gain_short = v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops, V4L2_CID_ANALOGUE_GAIN_SHORT,
+					IMX678_ANA_GAIN_MIN,
+					IMX678_ANA_GAIN_MAX,
+					IMX678_ANA_GAIN_STEP,
+					IMX678_ANA_GAIN_DEFAULT);
+
+	imx678->exponential_gain = v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops,
+		V4L2_CID_EXPONENTIAL_GAIN,
+		IMX678_EXP_GAIN_MIN,
+		IMX678_EXP_GAIN_MAX,
+		IMX678_EXP_GAIN_STEP,
+		IMX678_EXP_GAIN_DEFAULT);
 
 	imx678->hflip = v4l2_ctrl_new_std(ctrl_hdlr, &imx678_ctrl_ops,
 					  V4L2_CID_HFLIP, 0, 1, 1, 0);
@@ -1534,13 +1402,13 @@ static int imx678_check_hwcfg(struct device *dev, struct i2c_client *client)
 		goto error_out;
 	}
 
-	if (ep_cfg.nr_of_link_frequencies != ARRAY_SIZE(imx678_link_freq_menu)) {
+	if (ep_cfg.nr_of_link_frequencies != ARRAY_SIZE(imx678_link_freq_map)) {
 		dev_err(dev, "Link frequency missing in dtree\n");
 		goto error_out;
 	}
 
-	for (int i = 0; i < ARRAY_SIZE(imx678_link_freq_menu); i++) {
-		if (ep_cfg.link_frequencies[i] != imx678_link_freq_menu[i]) {
+	for (int i = 0; i < ARRAY_SIZE(imx678_link_freq_map); i++) {
+		if (ep_cfg.link_frequencies[i] != imx678_link_freq_map[i]) {
 			dev_err(dev, "no supported link freq found\n");
 			goto error_out;
 		}
@@ -1609,7 +1477,7 @@ static int imx678_probe(struct i2c_client *client)
 		return PTR_ERR(imx678->xmaster);
 	}
 
-	imx678->mode = &modes_12bit[0];
+	imx678->mode = &frame_mode_configs[0];
 	imx678->fmt_code = MEDIA_BUS_FMT_SRGGB12_1X12;
 
 	pm_runtime_set_active(dev);
@@ -1689,6 +1557,6 @@ static struct i2c_driver imx678_i2c_driver = {
 
 module_i2c_driver(imx678_i2c_driver);
 
-MODULE_AUTHOR("FRAMOS GmbH");
+MODULE_AUTHOR("FRAMOS GmbH, Brady Law");
 MODULE_DESCRIPTION("Sony IMX678 sensor driver");
 MODULE_LICENSE("GPL v2");

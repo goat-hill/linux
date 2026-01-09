@@ -10,10 +10,11 @@
 #define XMSTA			0x3002
 
 #define INCK_SEL		0x3014
-#define DATARATE_SEL		0x3015
+#define DATARATE_SEL	0x3015
 #define WINMODE			0x3018
 #define WDMODE			0x301A
 #define ADDMODE			0x301B
+#define THIN_V_EN		0x301C
 
 #define VCMODE			0x301E
 
@@ -27,47 +28,71 @@
 #define VMAX_HIGH		0x302A
 #define HMAX_LOW		0x302C
 #define HMAX_HIGH		0x302D
+#define FDG_SEL0		0x3030
 
 #define PIX_HST_LOW		0x303C
-#define PIX_HST_HIGH		0x303D
-#define PIX_HWIDTH_LOW		0x303E
-#define PIX_HWIDTH_HIGH		0x303F
+#define PIX_HST_HIGH	0x303D
+#define PIX_HWIDTH_LOW	0x303E
+#define PIX_HWIDTH_HIGH	0x303F
 
 #define LANEMODE		0x3040
 
 #define PIX_VST_LOW		0x3044
-#define PIX_VST_HIGH		0x3045
-#define PIX_VWIDTH_LOW		0x3046
-#define PIX_VWIDTH_HIGH		0x3047
+#define PIX_VST_HIGH	0x3045
+#define PIX_VWIDTH_LOW	0x3046
+#define PIX_VWIDTH_HIGH	0x3047
 
+// Long exposure
 #define SHR0_LOW		0x3050
 #define SHR0_MID		0x3051
 #define SHR0_HIGH		0x3052
 
-#define GAIN_LOW		0x3070
-#define GAIN_HIGH		0x3071
+// Short exposure
+#define SHR1_LOW		0x3054
+#define SHR1_MID		0x3055
+#define SHR1_HIGH		0x3056
+
+// Very short exposure
+#define SHR2_LOW		0x3058
+#define SHR2_MID		0x3059
+#define SHR2_HIGH		0x305A
+
+// Long exposure
+#define GAIN_0_LOW		0x3070
+#define GAIN_0_HIGH		0x3071
+
+// Short exposure
+#define GAIN_1_LOW		0x3072
+#define GAIN_1_HIGH		0x3073
+
+// Very short exposure
+#define GAIN_2_LOW		0x3074
+#define GAIN_2_HIGH		0x3075
+
+#define RHS1_LOW		0x3060
+#define RHS1_MID		0x3061
+#define RHS1_HIGH		0x3062
+#define RHS2_LOW		0x3064
+#define RHS2_MID		0x3065
+#define RHS2_HIGH		0x3066
+
+#define EXP_GAIN		0x3081
 
 #define XVS_XHS_DRV		0x30A6
 
 #define BLKLEVEL_LOW		0x30DC
 #define BLKLEVEL_HIGH		0x30DD
+#define GAIN_PGC_FIDMD		0x3400
 
 #define TPG_EN_DUOUT		0x30E0
 #define TPG_PATSEL_DUOUT	0x30E2
 #define TPG_COLORWIDTH		0x30E4
-#define TESTCLKEN		0x5300
+#define TESTCLKEN			0x5300
 
 #define EXTMODE			0x30CE
 
 #define IMX678_DEFAULT_WIDTH		3856
 #define IMX678_DEFAULT_HEIGHT		2180
-#define IMX678_CROP_2608x1964_WIDTH	2608
-#define IMX678_CROP_2608x1964_HEIGHT	1964
-#define IMX678_CROP_1920x1080_WIDTH	1920
-#define IMX678_CROP_1920x1080_HEIGHT	1080
-#define IMX678_MODE_BINNING_H2V2_WIDTH	1928
-#define IMX678_MODE_BINNING_H2V2_HEIGHT	1090
-
 
 struct imx678_reg {
 	u16 address;
@@ -80,9 +105,9 @@ struct imx678_reg {
 #define IMX678_TO_MID_BYTE(x) (x >> 8)
 
 static const struct imx678_reg mode_common_regs[] = {
-
 	{LANEMODE,		0x03},
 	{INCK_SEL,		0x01},
+	{XVS_XHS_DRV,	0x00},
 
 	{0x3460,		0x22},
 	{0x355A,		0x64},
@@ -441,110 +466,145 @@ static const struct imx678_reg mode_common_regs[] = {
 	{0x47C1,		0x01},
 	{0x47C2,		0x3E},
 	{0x47C3,		0x01},
-
+	{0x4E3C,		0x07},
 };
 
 static const struct imx678_reg raw12_framefmt_regs[] = {
-
 	{ADBIT,			0x01},
 	{MDBIT,			0x01},
-
 };
 
 static const struct imx678_reg raw10_framefmt_regs[] = {
-
 	{ADBIT,			0x00},
 	{MDBIT,			0x00},
-
 };
 
 static const struct imx678_reg raw12_h2v2_framefmt_regs[] = {
-
 	{ADBIT,			0x00},
 	{MDBIT,			0x01},
-
 };
 
 
 static const struct imx678_reg mode_3856x2180[] = {
-
 	{WINMODE,		0x00},
 	{ADDMODE,		0x00},
 	{WDMODE,		0x00},
 	{VCMODE,		0x01},
-
-};
-
-static const struct imx678_reg mode_crop_2608x1964[] = {
-
-	{WINMODE,		0x04},
-	{ADDMODE,		0x00},
-	{WDMODE,		0x00},
-	{VCMODE,		0x01},
-
-	{PIX_HST_HIGH,		IMX678_TO_MID_BYTE(628)},
-	{PIX_HST_LOW,		IMX678_TO_LOW_BYTE(628)},
-	{PIX_HWIDTH_HIGH,	IMX678_TO_MID_BYTE(IMX678_CROP_2608x1964_WIDTH)},
-	{PIX_HWIDTH_LOW,	IMX678_TO_LOW_BYTE(IMX678_CROP_2608x1964_WIDTH)},
-
-	{PIX_VST_HIGH,		IMX678_TO_MID_BYTE(108)},
-	{PIX_VST_LOW,		IMX678_TO_LOW_BYTE(108)},
-	{PIX_VWIDTH_HIGH,	IMX678_TO_MID_BYTE(IMX678_CROP_2608x1964_HEIGHT)},
-	{PIX_VWIDTH_LOW,	IMX678_TO_LOW_BYTE(IMX678_CROP_2608x1964_HEIGHT)},
-
-};
-
-
-static const struct imx678_reg mode_crop_1920x1080[] = {
-
-	{WINMODE,		0x04},
-	{ADDMODE,		0x00},
-	{WDMODE,		0x00},
-	{VCMODE,		0x01},
-
-	{PIX_HST_HIGH,		IMX678_TO_MID_BYTE(972)},
-	{PIX_HST_LOW,		IMX678_TO_LOW_BYTE(972)},
-	{PIX_HWIDTH_HIGH,	IMX678_TO_MID_BYTE(IMX678_CROP_1920x1080_WIDTH)},
-	{PIX_HWIDTH_LOW,	IMX678_TO_LOW_BYTE(IMX678_CROP_1920x1080_WIDTH)},
-
-	{PIX_VST_HIGH,		IMX678_TO_MID_BYTE(548)},
-	{PIX_VST_LOW,		IMX678_TO_LOW_BYTE(548)},
-	{PIX_VWIDTH_HIGH,	IMX678_TO_MID_BYTE(IMX678_CROP_1920x1080_HEIGHT)},
-	{PIX_VWIDTH_LOW,	IMX678_TO_LOW_BYTE(IMX678_CROP_1920x1080_HEIGHT)},
-
 };
 
 static const struct imx678_reg mode_h2v2_binning[] = {
-
 	{WINMODE,		0x00},
 	{ADDMODE,		0x01},
 	{WDMODE,		0x00},
 	{VCMODE,		0x01},
+};
 
+static struct imx678_reg imx678_setting_dol_hdr[] = {
+	{WINMODE,		0x00},
+	{WDMODE,		0x01},
+	{ADDMODE,		0x00},
+	{THIN_V_EN,		0x01},
+
+	{GAIN_PGC_FIDMD,	0x00},
+
+	{SHR0_LOW,		0x40},
+	{SHR0_MID,		0x0b},
+	{SHR1_LOW,		0x05},
+
+	{RHS1_LOW,		0x49},
+	{RHS1_MID,		0x00},
+
+	{0x355A,		 0x64},
+};
+
+static struct imx678_reg imx678_setting_clear_hdr[] = {
+	{WINMODE,		0x00},
+	{WDMODE,		0x08},
+	{ADDMODE,		0x00},
+
+	{VMAX_LOW,		0x94},
+	{VMAX_MID,		0x11},
+
+	{FDG_SEL0,		0x02},
+	{SHR0_LOW,		0x06},
+	{SHR0_MID,		0x00},
+
+	{0x306B,		0x04},
+	{EXP_GAIN,		0x02},
+	{0x355A,		0x00},
+	{0x3A20,		0x34},
+	{0x3A24,		0x44},
+	{0x3A26,		0x4E},
+	{0x3A28,		0x57},
+	{0x3A64,		0x01},
+	{0x3C37,		0x30},
+	{0x3CF2,		0x78},
+	{0x3CF3,		0x00},
+	{0x3CF4,		0xA5},
+	{0x3EB4,		0x7B},
+	{0x3EB5,		0x00},
+	{0x3EB6,		0xA5},
+	{0x3EB7,		0x40},
+	{0x3F24,		0x17},
+	{0x3F4C,		0x2D},
+	{0x4420,		0xFF},
+	{0x4421,		0x03},
+	{0x4422,		0x00},
+	{0x4423,		0x08},
+	{0x44A4,		0x37},
+	{0x44A6,		0x37},
+	{0x44A8,		0x37},
+	{0x44AA,		0x37},
+	{0x44B4,		0x37},
+	{0x44B6,		0x37},
+	{0x44B8,		0x37},
+	{0x44BA,		0x37},
+	{0x44C4,		0x37},
+	{0x44C6,		0x37},
+	{0x44C8,		0x37},
+	{0x453D,		0x18},
+	{0x453E,		0x18},
+	{0x453F,		0x11},
+	{0x4540,		0x11},
+	{0x4541,		0x11},
+	{0x4542,		0x11},
+	{0x4543,		0x11},
+	{0x4544,		0x11},
+	{0x4549,		0x00},
+	{0x454A,		0x00},
+	{0x454B,		0x04},
+	{0x454C,		0x04},
+	{0x454D,		0x04},
+	{0x454E,		0x04},
+	{0x454F,		0x04},
+	{0x4550,		0x04},
 };
 
 static const struct imx678_reg mode_enable_pattern_generator[] = {
-
 	{BLKLEVEL_LOW,		0x00},
 	{TPG_EN_DUOUT,		0x01},
 	{TPG_COLORWIDTH,	0x00},
 	{TESTCLKEN,		0x0A},
-
 };
 
 static const struct imx678_reg mode_disable_pattern_generator[] = {
-
 	{BLKLEVEL_LOW,		0x32},
 	{TPG_EN_DUOUT,		0x00},
 	{TPG_COLORWIDTH,	0x00},
 	{TESTCLKEN,		0x02},
-
 };
 
 enum {
-	_IMX678_LINK_FREQ_1440,
-	_IMX678_LINK_FREQ_1188,
-	_IMX678_LINK_FREQ_891,
+	IMX678_2376_MBPS,
+	IMX678_2079_MBPS,
+	IMX678_1782_MBPS,
+	IMX678_1440_MBPS,
+	IMX678_1188_MBPS,
+	IMX678_891_MBPS,
+	IMX678_720_MBPS,
+	IMX678_594_MBPS,
+	IMX678_525_MBPS,
+	IMX678_1050_MBPS,
 } link_freq;
 
 enum {
